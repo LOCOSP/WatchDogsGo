@@ -32,7 +32,7 @@ need rework before they're safe for general users.
 - **Bruce Firmware compatibility** — accepts wardriving CSVs uploaded from
   any of 50+ ESP32 boards running Bruce
 - **First-run experience**:
-  - One-line installer (`curl -sL https://locosp.github.io/esp32-watch-dogs/install | sudo bash`)
+  - One-line installer (`curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash`)
   - `setup.sh` auto-installs Python deps, SDL2, BlueZ, tcpdump, aircrack-ng,
     rtl_433, dump1090, RPi5/CM5 GPIO library
   - `secrets.conf.example` template with documented API keys

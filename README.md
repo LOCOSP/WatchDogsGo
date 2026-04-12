@@ -31,7 +31,7 @@ Landing page: [locosp.org](https://locosp.org) — choose your path.
 ### Quick Install (uConsole / Raspberry Pi OS / Debian)
 
 ```bash
-curl -sL https://locosp.github.io/esp32-watch-dogs/install | sudo bash
+curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash
 ```
 
 The installer clones the repo to `~/python/esp32-watch-dogs/`, creates a Python virtual environment, installs all dependencies, and adds a desktop launcher.

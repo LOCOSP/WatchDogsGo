@@ -322,11 +322,12 @@ body {
     <div class="install-box">
         <div class="install-label">// install on uconsole (one command)</div>
         <div class="install-cmd">
-            <code id="install-code" style="filter:blur(4px);user-select:none;pointer-events:none">curl -sL https://██████████████████████████████ | sudo bash</code>
-            <button class="btn-copy" style="opacity:0.3;cursor:default" disabled>LOCKED</button>
+            <code id="install-code">curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash</code>
+            <button class="btn-copy" onclick="copyInstall()">COPY</button>
         </div>
         <div style="margin-top:0.5rem;font-size:0.75rem;color:#606060">
-            available after registration on <a href="https://wdgwars.pl" target="_blank" style="color:#00e5ff;text-decoration:none">wdgwars.pl</a>
+            <a href="install" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view install script source</a>
+            &nbsp;— always review scripts before piping to sudo
         </div>
     </div>
 
@@ -386,10 +387,11 @@ body {
     </div>
 
     <div class="links">
-        <a href="https://github.com/LOCOSP/esp32-watch-dogs" class="link-btn">[ SOURCE CODE ]</a>
-        <a href="https://github.com/LOCOSP/esp32-watch-dogs/blob/master/docs/GUIDE.md" class="link-btn">[ DOCUMENTATION ]</a>
-        <a href="https://github.com/LOCOSP/esp32-watch-dogs/blob/master/docs/PLUGINS.md" class="link-btn">[ PLUGINS ]</a>
+        <a href="https://github.com/LOCOSP/WatchDogsGo" class="link-btn">[ SOURCE CODE ]</a>
+        <a href="https://github.com/LOCOSP/WatchDogsGo/blob/main/CHANGELOG.md" class="link-btn">[ CHANGELOG ]</a>
+        <a href="https://github.com/LOCOSP/WatchDogsGo/blob/main/CONTRIBUTING.md" class="link-btn">[ CONTRIBUTING ]</a>
         <a href="https://github.com/LOCOSP/projectZero" class="link-btn">[ ESP32 FIRMWARE ]</a>
+        <a href="https://wdgwars.pl" class="link-btn">[ WDGWARS PORTAL ]</a>
     </div>
 
     <div class="footer">

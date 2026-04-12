@@ -12,12 +12,12 @@ deploy_watchdogs.sh
 # Personal recordings — keep them out of public repos
 *.mov
 *.mp4
-# Exception: bg.mp4 is the public landing page video
+# Exception: bg.mp4 is the public landing page video (in both locations)
 !docs/site/bg.mp4
+!docs/bg.mp4
 # Plugin state files (per-user, not shared)
 plugins/.wardrive_state.json
 plugins/.wardrive_uploaded.json
 # OS junk
 .DS_Store
 Thumbs.db
-.claude/

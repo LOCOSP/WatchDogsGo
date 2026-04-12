@@ -1,6 +1,6 @@
 #!/bin/bash
 # ESP32 Watch Dogs — one-line installer
-# curl -sL https://locosp.github.io/esp32-watch-dogs/install | sudo bash
+# curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash
 
 set -e
 
@@ -29,7 +29,7 @@ TARGET_USER="${SUDO_USER:-$(whoami)}"
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 [ -n "$TARGET_HOME" ] || err "Cannot resolve home directory for user '$TARGET_USER'."
 
-INSTALL_DIR="${INSTALL_DIR:-$TARGET_HOME/python/esp32-watch-dogs}"
+INSTALL_DIR="${INSTALL_DIR:-$TARGET_HOME/python/WatchDogsGo}"
 
 echo -e "${CYAN}"
 echo "  ██╗    ██╗ █████╗ ████████╗ ██████╗██╗  ██╗"
@@ -56,7 +56,7 @@ elif [ -d "$INSTALL_DIR" ]; then
 else
     mkdir -p "$(dirname "$INSTALL_DIR")"
     chown "$TARGET_USER:$TARGET_USER" "$(dirname "$INSTALL_DIR")" 2>/dev/null || true
-    if ! sudo -u "$TARGET_USER" git clone https://github.com/LOCOSP/esp32-watch-dogs.git "$INSTALL_DIR"; then
+    if ! sudo -u "$TARGET_USER" git clone https://github.com/LOCOSP/WatchDogsGo.git "$INSTALL_DIR"; then
         err "git clone failed — check internet connection and try again"
     fi
     cd "$INSTALL_DIR" || err "Cannot enter $INSTALL_DIR after clone"

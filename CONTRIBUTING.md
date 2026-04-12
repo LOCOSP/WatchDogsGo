@@ -70,8 +70,8 @@ AIO v2 module. For wardriving with attacks you need an ESP32-C5 running
   in `watchdogs/`.
 - **No emoji in code or commit messages** unless the surrounding context
   uses them.
-- **No `Co-Authored-By:` AI assistant lines** in commits — if you used
-  an AI tool to help, that's fine, but the commit author is you alone.
+- **No `Co-Authored-By: Claude` lines** in commits — if you used AI to
+  help, that's fine, but the commit author is you.
 
 ## Commit messages
 
