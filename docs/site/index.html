@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Dogs Go — Choose Your Path</title>
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<script>
+(function() {
+    var saved = null;
+    try { saved = localStorage.getItem('locosp_lang'); } catch(e) {}
+    var lang;
+    if (saved === 'pl' || saved === 'en') {
+        lang = saved;
+    } else {
+        var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+        lang = nav.startsWith('pl') ? 'pl' : 'en';
+    }
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.setAttribute('lang', lang);
+})();
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    background: #000;
+    color: #fff;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+.split {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+    position: relative;
+}
+
+/* Each half */
+.half {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    transition: flex 0.6s ease;
+    cursor: pointer;
+}
+
+.half::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.8s ease, filter 0.6s ease;
+    z-index: 0;
+}
+
+.half::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    transition: background 0.6s ease;
+}
+
+/* Scanline overlay */
+.half .scanlines {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.15),
+        rgba(0,0,0,0.15) 2px,
+        transparent 2px,
+        transparent 4px
+    );
+}
+
+/* Content layer */
+.half .content {
+    position: relative;
+    z-index: 3;
+    padding: 2rem;
+    max-width: 600px;
+}
+
+.half .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 1rem;
+}
+
+.half h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(2rem, 5vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.2rem;
+    text-shadow: 0 0 20px currentColor;
+}
+
+.half .desc {
+    font-size: clamp(0.85rem, 1.4vw, 1.05rem);
+    line-height: 1.6;
+    opacity: 0.85;
+    margin-bottom: 2rem;
+    max-width: 480px;
+}
+
+.half .btn {
+    display: inline-block;
+    padding: 0.85rem 2rem;
+    border: 2px solid currentColor;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.4);
+    transition: all 0.3s ease;
+    text-shadow: 0 0 8px currentColor;
+}
+
+/* LEFT — WDGWARS.PL (gang warfare) */
+.half.wars {
+    color: #ff003c;
+}
+.half.wars::before {
+    background:
+        radial-gradient(ellipse at center, rgba(255,0,60,0.15) 0%, transparent 60%),
+        linear-gradient(135deg, #1a0008 0%, #2d0010 50%, #0a0003 100%);
+}
+.half.wars::after {
+    background: linear-gradient(135deg, rgba(255,0,60,0.05) 0%, rgba(0,0,0,0.4) 100%);
+}
+.half.wars:hover::before {
+    transform: scale(1.05);
+    filter: brightness(1.3);
+}
+.half.wars:hover .btn {
+    background: #ff003c;
+    color: #000;
+    box-shadow: 0 0 30px #ff003c;
+}
+
+/* RIGHT — WATCH DOGS GO (game info) */
+.half.game {
+    color: #00e5ff;
+}
+.half.game::before {
+    background:
+        radial-gradient(ellipse at center, rgba(0,229,255,0.15) 0%, transparent 60%),
+        linear-gradient(135deg, #001a22 0%, #00131a 50%, #00080d 100%);
+}
+.half.game::after {
+    background: linear-gradient(135deg, rgba(0,229,255,0.05) 0%, rgba(0,0,0,0.4) 100%);
+}
+.half.game:hover::before {
+    transform: scale(1.05);
+    filter: brightness(1.3);
+}
+.half.game:hover .btn {
+    background: #00e5ff;
+    color: #000;
+    box-shadow: 0 0 30px #00e5ff;
+}
+
+/* Hover expand */
+.split:hover .half {
+    flex: 0.85;
+}
+.split .half:hover {
+    flex: 1.15;
+}
+
+/* Center divider with logo */
+.divider {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    background: #000;
+    border: 2px solid #fff;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    box-shadow:
+        0 0 30px rgba(255,255,255,0.4),
+        0 0 60px rgba(255,255,255,0.2),
+        inset 0 0 20px rgba(0,0,0,0.8);
+}
+
+.divider span {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.4rem;
+    color: #fff;
+    letter-spacing: 0.05em;
+}
+
+/* Glitch animation on title */
+@keyframes glitch {
+    0%, 90%, 100% { transform: translate(0); }
+    92% { transform: translate(-2px, 1px); }
+    94% { transform: translate(2px, -1px); }
+    96% { transform: translate(-1px, -1px); }
+    98% { transform: translate(1px, 2px); }
+}
+
+.half h1 {
+    animation: glitch 8s infinite;
+}
+
+/* Top corner badges */
+.brand {
+    position: fixed;
+    top: 1.5rem;
+    z-index: 20;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    pointer-events: none;
+}
+.brand.left { left: 1.5rem; }
+.brand.right { right: 1.5rem; }
+
+/* Footer */
+.footer {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.15em;
+    text-align: center;
+    pointer-events: none;
+}
+
+/* Language switching */
+[data-lang="en"] [data-pl] { display: none; }
+[data-lang="pl"] [data-en] { display: none; }
+
+/* Lang switcher */
+.lang-switcher {
+    position: fixed;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    gap: 4px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 4px;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+}
+.lang-switcher button {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-family: 'Share Tech Mono', monospace;
+    padding: 4px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+.lang-switcher button:hover {
+    color: #fff;
+}
+[data-lang="pl"] .lang-switcher button[data-set="pl"],
+[data-lang="en"] .lang-switcher button[data-set="en"] {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+}
+
+/* Mobile — vertical split */
+@media (max-width: 768px) {
+    html, body { overflow-y: auto; }
+    .split {
+        flex-direction: column;
+        height: auto;
+    }
+    .half {
+        min-height: 50vh;
+        padding: 4rem 1.5rem;
+    }
+    .split:hover .half,
+    .split .half:hover {
+        flex: 1;
+    }
+    .divider {
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        margin: -45px auto;
+    }
+    .brand { display: none; }
+    .footer { position: relative; bottom: auto; padding: 1rem 0; }
+    .half h1 {
+        animation: none;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="brand left">// LOCOSP.ORG</div>
+<div class="brand right">// EST. 2025</div>
+
+<div class="lang-switcher">
+    <button data-set="en" onclick="setLang('en')">EN</button>
+    <button data-set="pl" onclick="setLang('pl')">PL</button>
+</div>
+
+<div class="split">
+
+    <a href="https://wdgwars.pl" class="half wars">
+        <div class="scanlines"></div>
+        <div class="content">
+            <div class="label" data-en="">// THE PORTAL</div>
+            <div class="label" data-pl="">// PORTAL</div>
+            <h1>WDGWARS</h1>
+            <p class="desc" data-en="">
+                Real-world gang warfare. Scan networks, claim territory,
+                fight other crews on a live map of the radio world.
+                Where every WiFi point belongs to someone.
+            </p>
+            <p class="desc" data-pl="">
+                Wojny gangów w prawdziwym świecie. Skanuj sieci, zajmuj
+                terytorium, walcz z innymi ekipami na żywej mapie radiowego
+                świata. Każdy punkt WiFi należy do kogoś.
+            </p>
+            <div class="btn" data-en="">[ ENTER THE WAR ]</div>
+            <div class="btn" data-pl="">[ ROZPOCZNIJ WOJNĘ ]</div>
+        </div>
+    </a>
+
+    <a href="game.html" class="half game">
+        <div class="scanlines"></div>
+        <div class="content">
+            <div class="label" data-en="">// THE GAME</div>
+            <div class="label" data-pl="">// GRA</div>
+            <h1>WATCH DOGS GO</h1>
+            <p class="desc" data-en="">
+                Open-world hacking RPG for ClockworkPi uConsole.
+                Real WiFi, real BLE, real GPS — wrapped in retro pixel art.
+                Three custom firmwares. One ecosystem.
+            </p>
+            <p class="desc" data-pl="">
+                Hakerski RPG w otwartym świecie na ClockworkPi uConsole.
+                Prawdziwe WiFi, BLE i GPS — opakowane w pikselową grafikę
+                retro. Trzy własne firmware'y. Jeden ekosystem.
+            </p>
+            <div class="btn" data-en="">[ LEARN MORE ]</div>
+            <div class="btn" data-pl="">[ DOWIEDZ SIĘ WIĘCEJ ]</div>
+        </div>
+    </a>
+
+    <div class="divider"><span>WDG</span></div>
+
+</div>
+
+<div class="footer">
+    <span data-en="">SELECT YOUR PATH &middot; CHOOSE WISELY</span>
+    <span data-pl="">WYBIERZ SWOJĄ DROGĘ &middot; WYBIERZ MĄDRZE</span>
+</div>
+
+<script>
+function setLang(lang) {
+    try { localStorage.setItem('locosp_lang', lang); } catch(e) {}
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.setAttribute('lang', lang);
+}
+</script>
+
+</body>
+</html>

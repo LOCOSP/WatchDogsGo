@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Dogs Go — Open-World Hacking RPG</title>
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #000;
+    color: #e0e0e0;
+    font-family: 'Share Tech Mono', monospace;
+    overflow-x: hidden;
+}
+
+/* Video background */
+.video-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 110vw; height: 110vh;
+    top: -5vh; left: -5vw;
+    object-fit: cover;
+    z-index: -2;
+    opacity: 0.55;
+    filter: saturate(0.7) brightness(0.7);
+}
+
+/* Scanline overlay */
+.scanlines {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.15) 2px,
+        rgba(0,0,0,0.15) 4px
+    );
+}
+
+/* Main content */
+.container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+}
+
+/* Glitch title */
+.title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    font-weight: 900;
+    text-align: center;
+    color: #00e5ff;
+    text-shadow:
+        0 0 10px rgba(0,229,255,0.5),
+        0 0 40px rgba(0,229,255,0.2),
+        0 0 80px rgba(0,229,255,0.1);
+    position: relative;
+    animation: glitch 3s infinite;
+    margin-bottom: 0.5rem;
+}
+
+.title::before,
+.title::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+}
+.title::before {
+    animation: glitch-clip-1 2s infinite linear alternate-reverse;
+    color: #ff004d;
+    z-index: -1;
+}
+.title::after {
+    animation: glitch-clip-2 3s infinite linear alternate-reverse;
+    color: #00e436;
+    z-index: -1;
+}
+
+@keyframes glitch-clip-1 {
+    0% { clip-path: inset(20% 0 60% 0); transform: translate(-3px, 0); }
+    20% { clip-path: inset(60% 0 10% 0); transform: translate(3px, 0); }
+    40% { clip-path: inset(40% 0 30% 0); transform: translate(-2px, 0); }
+    60% { clip-path: inset(80% 0 5% 0); transform: translate(1px, 0); }
+    80% { clip-path: inset(10% 0 70% 0); transform: translate(2px, 0); }
+    100% { clip-path: inset(50% 0 20% 0); transform: translate(-1px, 0); }
+}
+@keyframes glitch-clip-2 {
+    0% { clip-path: inset(70% 0 10% 0); transform: translate(2px, 0); }
+    25% { clip-path: inset(15% 0 65% 0); transform: translate(-3px, 0); }
+    50% { clip-path: inset(45% 0 25% 0); transform: translate(1px, 0); }
+    75% { clip-path: inset(85% 0 2% 0); transform: translate(-2px, 0); }
+    100% { clip-path: inset(30% 0 40% 0); transform: translate(3px, 0); }
+}
+
+.subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.9rem, 2.5vw, 1.2rem);
+    color: #808080;
+    text-align: center;
+    margin-bottom: 3rem;
+    letter-spacing: 0.15em;
+}
+
+/* Install box */
+.install-box {
+    background: rgba(0,0,0,0.85);
+    border: 1px solid #00e5ff;
+    border-radius: 4px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 3rem;
+    max-width: 700px;
+    width: 100%;
+    box-shadow: 0 0 30px rgba(0,229,255,0.15);
+}
+
+.install-label {
+    color: #808080;
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.install-cmd {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.install-cmd code {
+    flex: 1;
+    background: rgba(0,229,255,0.05);
+    color: #00e5ff;
+    padding: 0.75rem 1rem;
+    border-radius: 3px;
+    font-size: clamp(0.7rem, 2vw, 0.95rem);
+    white-space: nowrap;
+    overflow-x: auto;
+    border: 1px solid rgba(0,229,255,0.2);
+}
+
+.btn-copy {
+    background: transparent;
+    border: 1px solid #00e5ff;
+    color: #00e5ff;
+    padding: 0.75rem 1.2rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-copy:hover {
+    background: rgba(0,229,255,0.15);
+    box-shadow: 0 0 15px rgba(0,229,255,0.3);
+}
+
+/* Feature grid */
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    max-width: 900px;
+    width: 100%;
+    margin-bottom: 3rem;
+}
+
+.feature {
+    background: rgba(0,0,0,0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px;
+    padding: 1.5rem;
+    transition: border-color 0.3s;
+}
+.feature:hover {
+    border-color: rgba(0,229,255,0.4);
+}
+
+.feature-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.feature h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    color: #00e5ff;
+    margin-bottom: 0.5rem;
+}
+
+.feature p {
+    font-size: 0.8rem;
+    color: #808080;
+    line-height: 1.5;
+}
+
+/* Levels */
+.levels {
+    max-width: 700px;
+    width: 100%;
+    margin-bottom: 3rem;
+}
+
+.levels h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    color: #00e5ff;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.level-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    justify-content: center;
+}
+
+.level-tag {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 2px;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #606060;
+    transition: all 0.3s;
+}
+.level-tag:hover {
+    color: #00e5ff;
+    border-color: #00e5ff;
+    box-shadow: 0 0 8px rgba(0,229,255,0.3);
+}
+
+/* Links */
+.links {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.link-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+    text-decoration: none;
+    padding: 0.6rem 1.5rem;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+.link-btn:hover {
+    border-color: #00e5ff;
+    color: #00e5ff;
+    box-shadow: 0 0 15px rgba(0,229,255,0.2);
+}
+
+/* Footer */
+.footer {
+    color: #404040;
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 1rem;
+}
+.footer a { color: #606060; text-decoration: none; }
+.footer a:hover { color: #00e5ff; }
+
+/* Hardware badges */
+.hw-badges {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+.hw-badge {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid rgba(0,229,255,0.3);
+    border-radius: 2px;
+    color: #00e5ff;
+    background: rgba(0,229,255,0.05);
+}
+</style>
+</head>
+<body>
+
+<video class="video-bg" autoplay muted loop playsinline>
+    <source src="bg.mp4" type="video/mp4">
+</video>
+<div class="scanlines"></div>
+
+<div class="container">
+
+    <h1 class="title" data-text="WATCH DOGS GO">WATCH DOGS GO</h1>
+    <p class="subtitle">OPEN-WORLD HACKING RPG // REAL SIGNALS // REAL XP</p>
+
+    <div class="hw-badges">
+        <span class="hw-badge">ClockworkPi uConsole</span>
+        <span class="hw-badge">ESP32-C5</span>
+        <span class="hw-badge">PipBoy Watch</span>
+        <span class="hw-badge">LoRa MeshCore</span>
+        <span class="hw-badge">RTL-SDR</span>
+        <span class="hw-badge">Flipper Zero</span>
+    </div>
+
+    <div class="install-box">
+        <div class="install-label">// install on uconsole (one command)</div>
+        <div class="install-cmd">
+            <code id="install-code" style="filter:blur(4px);user-select:none;pointer-events:none">curl -sL https://██████████████████████████████ | sudo bash</code>
+            <button class="btn-copy" style="opacity:0.3;cursor:default" disabled>LOCKED</button>
+        </div>
+        <div style="margin-top:0.5rem;font-size:0.75rem;color:#606060">
+            available after registration on <a href="https://wdgwars.pl" target="_blank" style="color:#00e5ff;text-decoration:none">wdgwars.pl</a>
+        </div>
+    </div>
+
+    <div class="features">
+        <div class="feature">
+            <div class="feature-icon">📡</div>
+            <h3>WiFi Wardriving</h3>
+            <p>Scan, capture handshakes, deploy evil twins. Real WiFi attacks via ESP32-C5 with projectZero firmware.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">📶</div>
+            <h3>BLE Recon</h3>
+            <p>Track Bluetooth devices, AirTags, smartwatches. Every device discovered earns XP.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">📻</div>
+            <h3>MeshCore Messenger</h3>
+            <p>Encrypted off-grid chat over LoRa. No internet needed. 869 MHz mesh network with E2E encryption.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">✈</div>
+            <h3>ADS-B Radar</h3>
+            <p>Track aircraft in real-time on your map via RTL-SDR. See callsigns, altitude, speed.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">⌚</div>
+            <h3>PipBoy Watch</h3>
+            <p>T-Watch Ultra companion. NFC scanning, remote recon, LoRa, GPS. Control from game via BLE.</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🎮</div>
+            <h3>RPG Progression</h3>
+            <p>20 levels from NOOB to CYBER_DEMON. Badges, hat colors, XP for every discovery. Your hacking career.</p>
+        </div>
+    </div>
+
+    <div class="levels">
+        <h2>// PROGRESSION</h2>
+        <div class="level-bar">
+            <span class="level-tag">NOOB</span>
+            <span class="level-tag">SCRIPT_KIDDIE</span>
+            <span class="level-tag">SKIDDIE+</span>
+            <span class="level-tag">WANNABE</span>
+            <span class="level-tag">PACKET_MONKEY</span>
+            <span class="level-tag">WARDRIVER</span>
+            <span class="level-tag">HACKER</span>
+            <span class="level-tag">NETRUNNER</span>
+            <span class="level-tag">PHREAKER</span>
+            <span class="level-tag">EXPLOIT_DEV</span>
+            <span class="level-tag">ELITE</span>
+            <span class="level-tag">SHADOW_OPS</span>
+            <span class="level-tag">GHOST</span>
+            <span class="level-tag">ZERO_DAY</span>
+            <span class="level-tag">APT_AGENT</span>
+            <span class="level-tag">CYBER_DEMON</span>
+        </div>
+    </div>
+
+    <div class="links">
+        <a href="https://github.com/LOCOSP/esp32-watch-dogs" class="link-btn">[ SOURCE CODE ]</a>
+        <a href="https://github.com/LOCOSP/esp32-watch-dogs/blob/master/docs/GUIDE.md" class="link-btn">[ DOCUMENTATION ]</a>
+        <a href="https://github.com/LOCOSP/esp32-watch-dogs/blob/master/docs/PLUGINS.md" class="link-btn">[ PLUGINS ]</a>
+        <a href="https://github.com/LOCOSP/projectZero" class="link-btn">[ ESP32 FIRMWARE ]</a>
+    </div>
+
+    <div class="footer">
+        <p>by <a href="https://github.com/LOCOSP">LOCOSP</a> // real hacking is cooler than simulated</p>
+    </div>
+
+</div>
+
+<script>
+function copyInstall() {
+    const code = document.getElementById('install-code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        const btn = document.querySelector('.btn-copy');
+        btn.textContent = 'COPIED!';
+        btn.style.color = '#00e436';
+        btn.style.borderColor = '#00e436';
+        setTimeout(() => {
+            btn.textContent = 'COPY';
+            btn.style.color = '#00e5ff';
+            btn.style.borderColor = '#00e5ff';
+        }, 2000);
+    });
+}
+</script>
+
+</body>
+</html>

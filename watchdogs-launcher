@@ -1,0 +1,33 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+export PYTHONDONTWRITEBYTECODE=1
+# Kill meshtasticd which holds SPI/GPIO for LoRa SX1262
+if command -v meshtasticd >/dev/null 2>&1; then
+    sudo pkill -9 meshtasticd 2>/dev/null || true
+    sudo systemctl stop meshtasticd 2>/dev/null || true
+fi
+sudo find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+# Stderr is captured to ~/.watchdogs/last_run.log by the game itself,
+# but we ALSO redirect launcher stderr to a sidecar file so the launcher
+# wrapper errors are not lost. Don't swallow them with /dev/null.
+LOG_DIR="$HOME/.watchdogs"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LAUNCHER_LOG="$LOG_DIR/launcher.log"
+
+exec lxterminal --title="ESP32 Watch Dogs" --no-remote -e bash -c "
+    sudo -E PYTHONDONTWRITEBYTECODE=1 \
+        XDG_RUNTIME_DIR=/run/user/\${SUDO_UID:-\$(id -u)} \
+        .venv/bin/python3 -m watchdogs 2>>'$LAUNCHER_LOG'
+    EXIT=\$?
+    if [ \$EXIT -ne 0 ]; then
+        echo ''
+        echo '═══════════════════════════════════════════════════'
+        echo 'Game exited with error (code '\$EXIT').'
+        echo 'Logs:'
+        echo '  ~/.watchdogs/last_run.log    — full game log'
+        echo '  ~/.watchdogs/launcher.log    — launcher stderr'
+        echo '═══════════════════════════════════════════════════'
+    fi
+    read -p 'Press Enter to close...'
+"

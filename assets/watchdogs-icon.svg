@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d0d1a"/>
+      <stop offset="100%" stop-color="#1a0d2e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00ffcc"/>
+      <stop offset="100%" stop-color="#0077ff"/>
+    </linearGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="2.5"/>
+    </filter>
+    <filter id="glow-fx">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="18" fill="url(#bg)"/>
+
+  <!-- Outer hex border -->
+  <polygon points="64,6 110,32 110,80 64,106 18,80 18,32"
+           fill="none" stroke="#00ffcc" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Triangle (Watch Dogs eye symbol) — glow layer -->
+  <polygon points="64,22 102,88 26,88"
+           fill="none" stroke="#00ffcc" stroke-width="4"
+           filter="url(#blur)" opacity="0.6"/>
+
+  <!-- Triangle main -->
+  <polygon points="64,22 102,88 26,88"
+           fill="none" stroke="url(#glow)" stroke-width="2"/>
+
+  <!-- Eye in triangle -->
+  <!-- Iris glow -->
+  <ellipse cx="64" cy="66" rx="18" ry="11" fill="#00ffcc" opacity="0.12" filter="url(#blur)"/>
+  <!-- Eye white -->
+  <ellipse cx="64" cy="66" rx="18" ry="11" fill="none" stroke="url(#glow)" stroke-width="1.5"/>
+  <!-- Pupil -->
+  <circle cx="64" cy="66" r="6" fill="#001a33"/>
+  <circle cx="64" cy="66" r="5" fill="none" stroke="#00ffcc" stroke-width="1"/>
+  <circle cx="64" cy="66" r="2.5" fill="#00ffcc"/>
+  <!-- Highlight -->
+  <circle cx="67" cy="63" r="1" fill="white" opacity="0.8"/>
+
+  <!-- Scan line across eye -->
+  <line x1="30" y1="66" x2="98" y2="66" stroke="#00ffcc" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- Bottom "ESP32" text -->
+  <text x="64" y="106" font-family="monospace" font-size="8" fill="#00ffcc"
+        text-anchor="middle" opacity="0.7" letter-spacing="2">ESP32</text>
+
+  <!-- Corner brackets (Watch Dogs UI) -->
+  <path d="M8,8 L20,8 M8,8 L8,20" stroke="#00ffcc" stroke-width="1.5" opacity="0.6"/>
+  <path d="M120,8 L108,8 M120,8 L120,20" stroke="#00ffcc" stroke-width="1.5" opacity="0.6"/>
+  <path d="M8,120 L20,120 M8,120 L8,108" stroke="#00ffcc" stroke-width="1.5" opacity="0.6"/>
+  <path d="M120,120 L108,120 M120,120 L120,108" stroke="#00ffcc" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Scanlines overlay -->
+  <rect width="128" height="128" rx="18" fill="none"
+        stroke="#00ffcc" stroke-width="0.3" opacity="0.1"/>
+</svg>

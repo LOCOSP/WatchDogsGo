@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+loot/
+maps/
+firmware_cache/
+secrets.conf
+*.log
+CLAUDE.md
+deploy_watchdogs.sh
+# Personal recordings — keep them out of public repos
+*.mov
+*.mp4
+# Exception: bg.mp4 is the public landing page video
+!docs/site/bg.mp4
+# Plugin state files (per-user, not shared)
+plugins/.wardrive_state.json
+plugins/.wardrive_uploaded.json
+# OS junk
+.DS_Store
+Thumbs.db
+.claude/

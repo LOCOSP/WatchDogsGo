@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Watch Dogs Go
+Comment=Open World Hacking RPG for ESP32
+# This file is a template — the install script generates a copy in
+# ~/Desktop/watchdogs.desktop with the actual install path substituted in.
+Exec=watchdogs-launcher
+Icon=watchdogs-icon
+Terminal=false
+Type=Application
+Categories=Game;Security;
+StartupNotify=true

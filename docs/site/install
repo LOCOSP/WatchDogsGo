@@ -1,0 +1,107 @@
+#!/bin/bash
+# ESP32 Watch Dogs — one-line installer
+# curl -sL https://locosp.github.io/esp32-watch-dogs/install | sudo bash
+
+set -e
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+err() {
+    echo -e "${RED}[error]${NC} $1" >&2
+    exit 1
+}
+
+warn() {
+    echo -e "${YELLOW}[warn]${NC} $1" >&2
+}
+
+# Pre-flight checks
+[ "$(uname)" = "Linux" ] || err "Only Linux is supported (uConsole / Raspberry Pi OS / Debian / Ubuntu)."
+command -v git >/dev/null 2>&1 || err "git is required. Install with: apt-get install git"
+command -v bash >/dev/null 2>&1 || err "bash is required."
+
+# Resolve install user (works under sudo and non-sudo)
+TARGET_USER="${SUDO_USER:-$(whoami)}"
+TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+[ -n "$TARGET_HOME" ] || err "Cannot resolve home directory for user '$TARGET_USER'."
+
+INSTALL_DIR="${INSTALL_DIR:-$TARGET_HOME/python/esp32-watch-dogs}"
+
+echo -e "${CYAN}"
+echo "  ██╗    ██╗ █████╗ ████████╗ ██████╗██╗  ██╗"
+echo "  ██║    ██║██╔══██╗╚══██╔══╝██╔════╝██║  ██║"
+echo "  ██║ █╗ ██║███████║   ██║   ██║     ███████║"
+echo "  ██║███╗██║██╔══██║   ██║   ██║     ██╔══██║"
+echo "  ╚███╔███╔╝██║  ██║   ██║   ╚██████╗██║  ██║"
+echo "   ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝"
+echo -e "  ${GREEN}DOGS GO${CYAN} — Open-World Hacking RPG${NC}"
+echo ""
+echo "  Install dir: $INSTALL_DIR"
+echo "  Target user: $TARGET_USER"
+echo ""
+
+echo -e "${GREEN}[1/3]${NC} Cloning repository..."
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "  Directory exists — pulling latest..."
+    cd "$INSTALL_DIR" || err "Cannot enter $INSTALL_DIR"
+    if ! sudo -u "$TARGET_USER" git pull --ff-only origin master; then
+        warn "git pull failed — continuing with existing copy"
+    fi
+elif [ -d "$INSTALL_DIR" ]; then
+    err "$INSTALL_DIR exists but is not a git repo. Remove it first or set INSTALL_DIR=..."
+else
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    chown "$TARGET_USER:$TARGET_USER" "$(dirname "$INSTALL_DIR")" 2>/dev/null || true
+    if ! sudo -u "$TARGET_USER" git clone https://github.com/LOCOSP/esp32-watch-dogs.git "$INSTALL_DIR"; then
+        err "git clone failed — check internet connection and try again"
+    fi
+    cd "$INSTALL_DIR" || err "Cannot enter $INSTALL_DIR after clone"
+fi
+
+echo ""
+echo -e "${GREEN}[2/3]${NC} Running setup (this may take a few minutes)..."
+if ! bash setup.sh; then
+    err "setup.sh failed — see errors above. Re-run: cd $INSTALL_DIR && sudo bash setup.sh"
+fi
+
+echo ""
+echo -e "${GREEN}[3/3]${NC} Creating desktop launcher..."
+DESKTOP_DIR="$TARGET_HOME/Desktop"
+if [ -d "$DESKTOP_DIR" ]; then
+    DESKTOP_FILE="$DESKTOP_DIR/watchdogs.desktop"
+    cat > "$DESKTOP_FILE" << DESKTOP
+[Desktop Entry]
+Name=Watch Dogs Go
+Comment=Open-World Hacking RPG
+Exec=lxterminal --title="ESP32 Watch Dogs" -e bash -c "cd $INSTALL_DIR && sudo -E ./run.sh; read -p 'Press Enter to close...'"
+Terminal=false
+Type=Application
+Categories=Game;Security;
+Icon=$INSTALL_DIR/assets/icon.png
+DESKTOP
+    chmod +x "$DESKTOP_FILE" 2>/dev/null || true
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_FILE" 2>/dev/null || true
+    echo "  Created: $DESKTOP_FILE"
+else
+    warn "No Desktop folder at $DESKTOP_DIR — skipping launcher"
+fi
+
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║         Installation complete!              ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  ${CYAN}To start:${NC}  cd $INSTALL_DIR && sudo ./run.sh"
+if [ -d "$DESKTOP_DIR" ]; then
+    echo -e "  ${CYAN}Desktop:${NC}  Double-click Watch Dogs Go on desktop"
+fi
+echo ""
+echo -e "  ${YELLOW}Optional:${NC} edit secrets.conf for API keys (Wigle, WPA-sec)"
+echo -e "           cp secrets.conf.example secrets.conf && nano secrets.conf"
+echo ""
+echo -e "  ${GREEN}// real hacking is cooler than simulated${NC}"
+echo ""
