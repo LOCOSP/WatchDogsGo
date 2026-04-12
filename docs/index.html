@@ -17,16 +17,33 @@ body {
     overflow-x: hidden;
 }
 
-/* Video background */
+/* Video background — no filter, no opacity (those are GPU killers
+   that re-composite every frame). Darken with a static overlay div
+   layered on top instead. */
 .video-bg {
     position: fixed;
-    top: 0; left: 0;
-    width: 110vw; height: 110vh;
     top: -5vh; left: -5vw;
+    width: 110vw; height: 110vh;
     object-fit: cover;
+    z-index: -3;
+    /* GPU acceleration hints — promote video to its own layer */
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Static dark overlay — replaces the per-frame filter on the video.
+   This composites once and stays put, so the video plays smoothly. */
+.video-overlay {
+    position: fixed;
+    inset: 0;
     z-index: -2;
-    opacity: 0.55;
-    filter: saturate(0.7) brightness(0.7);
+    pointer-events: none;
+    background:
+        linear-gradient(180deg,
+            rgba(0,0,0,0.55) 0%,
+            rgba(0,0,0,0.45) 50%,
+            rgba(0,0,0,0.6) 100%);
 }
 
 /* Scanline overlay */
@@ -300,9 +317,11 @@ body {
 </head>
 <body>
 
-<video class="video-bg" autoplay muted loop playsinline>
+<video class="video-bg" autoplay muted loop playsinline preload="auto"
+       disablepictureinpicture disableremoteplayback>
     <source src="bg.mp4" type="video/mp4">
 </video>
+<div class="video-overlay"></div>
 <div class="scanlines"></div>
 
 <div class="container">
