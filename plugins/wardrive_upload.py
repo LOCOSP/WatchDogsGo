@@ -72,16 +72,13 @@ def _map_auth(wigle_auth: str) -> str:
     return wigle_auth.strip("[]")
 
 
+DEFAULT_API_URL = "https://wdgwars.pl/api/upload/"
+
+
 def _default_endpoint() -> str:
-    """Resolve default server endpoint."""
-    _t = "HxUAExteQEgEAwgAAAYQRhQDSBIXBlgUBA8HBQtI"
-    _k = "watchdogsgo"
-    try:
-        import base64
-        d = base64.b64decode(_t)
-        return bytes(c ^ ord(_k[i % len(_k)]) for i, c in enumerate(d)).decode()
-    except Exception:
-        return ""
+    """Resolve default server endpoint. Override in secrets.conf with
+    WARDRIVE_API_URL=... if you run your own wardrive server."""
+    return DEFAULT_API_URL
 
 
 def _load_secrets_conf() -> dict:
