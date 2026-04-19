@@ -210,6 +210,37 @@ _TERM_SKIP_PREFIX = (
 _TERM_SKIP_CONTAIN = ("already running",)
 
 
+def _color_for_terminal_line(line: str) -> int:
+    """Pick a palette color for a terminal line. Computed once at append time
+    so the draw loop doesn't re-evaluate 11 string checks per line per frame."""
+    if line.startswith("[WiFi]") or line.startswith("[BLE]"):
+        return C_SUCCESS
+    if line.startswith("[TRACKER]"):
+        return C_WARNING
+    if line.startswith("[WL]"):
+        return C_DIM
+    if ":PWD]" in line:
+        return 12
+    if ":CLIENT]" in line:
+        return C_HACK_CYAN
+    if line.startswith(">>>") or "RSSI:" in line or "dBm" in line:
+        return C_HACK_CYAN
+    if "SSID:" in line or ("SSID" in line and "scan" not in line.lower()):
+        return C_SUCCESS
+    if "AP:" in line or "BSSID:" in line:
+        return C_SUCCESS
+    low = line.lower()
+    if "handshake" in low or "captured" in low:
+        return C_WARNING
+    if "[ERR]" in line or "[WARN]" in line:
+        return C_ERROR
+    if "[OK]" in line or "[SYS]" in line:
+        return C_DIM
+    if "Ch:" in line or "Channel" in line or "Auth:" in line:
+        return 6
+    return C_TEXT
+
+
 # ---------------------------------------------------------------------------
 # Game objects
 # ---------------------------------------------------------------------------
@@ -329,6 +360,21 @@ class WatchDogsGame:
 
         self.proj = MapProjection()
         self._coastlines = COASTLINES
+        self._coast_bounds: list[tuple | None] = []
+        for seg in self._coastlines:
+            if len(seg) < 2:
+                self._coast_bounds.append(None)
+                continue
+            min_lat = min_lon = 1e9
+            max_lat = max_lon = -1e9
+            for lat, lon in seg:
+                if lat < min_lat: min_lat = lat
+                if lat > max_lat: max_lat = lat
+                if lon < min_lon: min_lon = lon
+                if lon > max_lon: max_lon = lon
+            antimerid = (max_lon - min_lon) >= 180
+            self._coast_bounds.append(
+                (min_lat, max_lat, min_lon, max_lon, antimerid))
 
         # --- Direct serial/GPS (no IPC) ---
         self.state = AppState()
@@ -714,6 +760,7 @@ class WatchDogsGame:
 
         # Terminal
         self.terminal_lines: list[str] = []
+        self._terminal_colors: list[int] = []
         self.term_scroll = 0
         self._term_lock = threading.Lock()
 
@@ -1223,10 +1270,13 @@ class WatchDogsGame:
         if not raw:
             if not self._term_filter(line):
                 return
+        color = _color_for_terminal_line(line)
         with self._term_lock:
             self.terminal_lines.append(line)
+            self._terminal_colors.append(color)
             if len(self.terminal_lines) > 500:
                 self.terminal_lines = self.terminal_lines[-500:]
+                self._terminal_colors = self._terminal_colors[-500:]
 
     def _term_filter(self, s: str) -> bool:
         """Return True if line should be shown in terminal."""
@@ -3918,24 +3968,23 @@ class WatchDogsGame:
         vh = self.proj.center_lat + self.proj.lat_span
         wl = self.proj.center_lon - self.proj.lon_span
         wh = self.proj.center_lon + self.proj.lon_span
-        for seg in self._coastlines:
-            if len(seg) < 2: continue
-            lats = [p[0] for p in seg]
-            lons = [p[1] for p in seg]
-            if max(lats) < vl or min(lats) > vh: continue
-            if (max(lons) - min(lons)) < 180:
-                if max(lons) < wl or min(lons) > wh: continue
+        hi_zoom = self.proj.zoom >= 5
+        geo2scr = self.proj.geo_to_screen
+        visible = self.proj.screen_visible
+        W_THRESH = W * 0.8
+        for seg, bounds in zip(self._coastlines, self._coast_bounds):
+            if bounds is None: continue
+            min_lat, max_lat, min_lon, max_lon, antimerid = bounds
+            if max_lat < vl or min_lat > vh: continue
+            if not antimerid and (max_lon < wl or min_lon > wh): continue
             psx, psy = None, None
             for lat, lon in seg:
-                sx, sy = self.proj.geo_to_screen(lat, lon)
-                if psx is not None and abs(sx - psx) < W * 0.8:
+                sx, sy = geo2scr(lat, lon)
+                if psx is not None and abs(sx - psx) < W_THRESH:
                     pyxel.line(psx, psy, sx, sy, C_LAND)
+                if hi_zoom and visible(sx, sy):
+                    pyxel.pset(sx, sy, C_COAST)
                 psx, psy = sx, sy
-            if self.proj.zoom >= 5:
-                for lat, lon in seg:
-                    sx, sy = self.proj.geo_to_screen(lat, lon)
-                    if self.proj.screen_visible(sx, sy):
-                        pyxel.pset(sx, sy, C_COAST)
 
     def _draw_grid(self):
         if self.proj.zoom < 4: return
@@ -4018,6 +4067,18 @@ class WatchDogsGame:
                 })
                 grid.setdefault((gcx, gcy), []).append(len(clusters) - 1)
 
+        for cl in clusters:
+            pts = cl["points"]
+            if cl["count"] == 1:
+                cl["color"] = (C_HACK_CYAN
+                               if pts[0].get("type") == "bt" else C_SUCCESS)
+                cl["radius"] = 0
+            else:
+                wifi = sum(1 for p in pts if p.get("type") == "wifi")
+                bt = sum(1 for p in pts if p.get("type") == "bt")
+                cl["color"] = C_HACK_CYAN if bt > wifi else C_SUCCESS
+                cl["radius"] = min(5 + cl["count"] // 3, 12)
+
         self._clusters = clusters
 
     @staticmethod
@@ -4029,18 +4090,19 @@ class WatchDogsGame:
 
     def _draw_loot_points(self):
         self._update_clusters()
+        zoom = self.proj.zoom
         for idx, cl in enumerate(self._clusters):
             selected = (idx == self._cluster_sel)
+            c = cl["color"]
             if cl["count"] == 1:
                 # Single point — small dot, label at high zoom
                 pt = cl["points"][0]
-                c = C_HACK_CYAN if pt.get("type") == "bt" else C_SUCCESS
-                if self.proj.zoom >= 8:
+                if zoom >= 8:
                     pyxel.circ(cl["x"], cl["y"], 2, c)
-                    if self.proj.zoom >= 10:
+                    if zoom >= 10:
                         pyxel.text(cl["x"] + 4, cl["y"] - 2,
                                    pt.get("label", "")[:16], c)
-                elif self.proj.zoom >= 3:
+                elif zoom >= 3:
                     pyxel.rect(cl["x"], cl["y"], 2, 2, c)
                 else:
                     pyxel.pset(cl["x"], cl["y"], c)
@@ -4051,8 +4113,7 @@ class WatchDogsGame:
                         pyxel.circb(cl["x"], cl["y"], 7, C_HACK_CYAN)
             else:
                 # Cluster bubble — radius scales with count
-                r = min(5 + cl["count"] // 3, 12)
-                c = self._cluster_color(cl["points"])
+                r = cl["radius"]
                 pyxel.circ(cl["x"], cl["y"], r, c)
                 pyxel.circb(cl["x"], cl["y"], r, 0)
                 txt = str(cl["count"])
@@ -4457,6 +4518,7 @@ class WatchDogsGame:
 
         with self._term_lock:
             lines_snap = list(self.terminal_lines)
+            colors_snap = list(self._terminal_colors)
         total = len(lines_snap)
 
         if self.term_scroll > 0:
@@ -4476,35 +4538,11 @@ class WatchDogsGame:
             start = max(0, end - max_visible)
 
         y = content_y
+        have_colors = len(colors_snap) == total
         for i in range(start, end):
             line = lines_snap[i]
-            display = line[:150]
-            c = C_TEXT
-            if line.startswith("[WiFi]") or line.startswith("[BLE]"):
-                c = C_SUCCESS  # lime green for scan results
-            elif line.startswith("[TRACKER]"):
-                c = C_WARNING  # orange for tracker alerts
-            elif line.startswith("[WL]"):
-                c = C_DIM  # grey for whitelist actions
-            elif ":PWD]" in line:
-                c = 12  # blue for captured credentials
-            elif ":CLIENT]" in line:
-                c = C_HACK_CYAN  # cyan for client connections
-            elif line.startswith(">>>") or "RSSI:" in line or "dBm" in line:
-                c = C_HACK_CYAN
-            elif "SSID:" in line or ("SSID" in line and "scan" not in line.lower()):
-                c = C_SUCCESS
-            elif "AP:" in line or "BSSID:" in line:
-                c = C_SUCCESS
-            elif "handshake" in line.lower() or "captured" in line.lower():
-                c = C_WARNING
-            elif "[ERR]" in line or "[WARN]" in line:
-                c = C_ERROR
-            elif "[OK]" in line or "[SYS]" in line:
-                c = C_DIM
-            elif any(x in line for x in ("Ch:", "Channel", "Auth:")):
-                c = 6
-            pyxel.text(4, y, display, c)
+            c = colors_snap[i] if have_colors else C_TEXT
+            pyxel.text(4, y, line[:150], c)
             y += line_h
             if y >= TERM_Y + TERM_H - 2:
                 break
