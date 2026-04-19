@@ -4134,8 +4134,9 @@ class WatchDogsGame:
                 pyxel.circ(cl["x"], cl["y"], r, c)
                 pyxel.circb(cl["x"], cl["y"], r, 0)
                 txt = str(cl["count"])
-                tx = cl["x"] - len(txt) * 2
-                pyxel.text(tx, cl["y"] - 2, txt, 0)
+                # Center label — 5px per glyph halved
+                tx = cl["x"] - (len(txt) * 5) // 2
+                pyxel.text(tx, cl["y"] - 3, txt, 0)
                 # Selection ring for clusters
                 if selected:
                     pyxel.circb(cl["x"], cl["y"], r + 3, C_TEXT)
@@ -5517,23 +5518,24 @@ class WatchDogsGame:
         """Draw fullscreen Flipper Zero interface."""
         pyxel.cls(0)
         pyxel.rectb(1, 1, W - 2, H - 2, C_WARNING)
-        pyxel.rect(2, 2, W - 4, 11, 1)
+        pyxel.rect(2, 2, W - 4, 14, 1)
         name = self._flipper.device_name or "Flipper Zero"
         fw = self._flipper.firmware or "?"
         conn = "ONLINE" if self._flipper.connected else "OFFLINE"
         conn_c = C_SUCCESS if self._flipper.connected else C_ERROR
-        pyxel.text(6, 4, f"FLIPPER ZERO // {name} // {fw}", C_WARNING)
-        pyxel.text(W - 60, 4, conn, conn_c)
-        pyxel.text(W - 30, 4, "[ESC]", C_DIM)
-        pyxel.line(1, 13, W - 2, 13, C_WARNING)
+        pyxel.text(6, 5, f"FLIPPER ZERO // {name} // {fw}", C_WARNING)
+        pyxel.text(W - 75, 5, conn, conn_c)
+        pyxel.text(W - 35, 5, "[ESC]", C_DIM)
+        pyxel.line(1, 16, W - 2, 16, C_WARNING)
 
-        mid_y = 14
+        mid_y = 18
         split_y = H // 2 + 50  # top: ASCII + menu, bottom: log
+        ROW_H = 13              # 5x8 font with 5px gap/padding
 
         if self._flipper_mode == "idle":
-            # ASCII dolphin on left
+            # ASCII dolphin on left — 9px per line (8px glyph + 1)
             for i, line in enumerate(self._FLIPPER_ASCII):
-                pyxel.text(10, mid_y + 2 + i * 7, line, C_WARNING)
+                pyxel.text(10, mid_y + 2 + i * 9, line, C_WARNING)
 
             # Menu on right
             mx = 310
@@ -5541,98 +5543,99 @@ class WatchDogsGame:
             for i, (label, action) in enumerate(self._FLIPPER_MENU):
                 if action is None:
                     # Section header
-                    pyxel.text(mx, y + 1, label.strip("- "), C_HACK_CYAN)
-                    pyxel.line(mx, y + 9, mx + 140, y + 9, 1)
-                    y += 12
+                    pyxel.text(mx, y + 2, label.strip("- "), C_HACK_CYAN)
+                    pyxel.line(mx, y + 11, mx + 140, y + 11, 1)
+                    y += ROW_H
                 else:
                     sel = (i == self._flipper_sel)
                     if sel:
-                        pyxel.rect(mx - 2, y - 1, 180, 11, C_WARNING)
+                        pyxel.rect(mx - 2, y - 1, 200, ROW_H - 1, C_WARNING)
                     c = 0 if sel else C_TEXT
-                    pyxel.text(mx + 2, y + 1, label, c)
-                    y += 12
+                    pyxel.text(mx + 2, y + 2, label, c)
+                    y += ROW_H
 
-            pyxel.text(mx, split_y - 10,
+            pyxel.text(mx, split_y - 12,
                        "UP/DOWN  ENTER  ESC=close", C_DIM)
 
         elif self._flipper_mode == "folders":
             pyxel.text(10, mid_y + 2, "SIGNAL LIBRARY (SD)", C_HACK_CYAN)
-            pyxel.line(10, mid_y + 10, 200, mid_y + 10, 1)
-            max_vis = (split_y - mid_y - 30) // 10
+            pyxel.line(10, mid_y + 12, 200, mid_y + 12, 1)
+            max_vis = (split_y - mid_y - 32) // ROW_H
             scroll = max(0, self._flipper_sel - max_vis + 1)
             folders = self._flipper_folders
             for i in range(scroll, min(len(folders), scroll + max_vis)):
-                y = mid_y + 14 + (i - scroll) * 10
+                y = mid_y + 16 + (i - scroll) * ROW_H
                 sel = (i == self._flipper_sel)
                 if sel:
-                    pyxel.rect(8, y - 1, 300, 9, C_WARNING)
+                    pyxel.rect(8, y - 1, 300, ROW_H - 2, C_WARNING)
                 c = 0 if sel else C_TEXT
-                pyxel.text(10, y, f"[DIR] {folders[i]}", c)
+                pyxel.text(10, y + 1, f"[DIR] {folders[i]}", c)
             # Also show root files count
             if self._flipper_root_files:
                 pyxel.text(320, mid_y + 2,
                            f"+{len(self._flipper_root_files)} root signals",
                            C_DIM)
-            pyxel.text(10, split_y - 10,
+            pyxel.text(10, split_y - 12,
                        "ENTER=open folder  ESC=back", C_DIM)
 
         elif self._flipper_mode == "files":
             pyxel.text(10, mid_y + 2, "SIGNALS — ENTER to transmit", C_HACK_CYAN)
-            pyxel.line(10, mid_y + 10, 250, mid_y + 10, 1)
-            max_vis = (split_y - mid_y - 30) // 10
+            pyxel.line(10, mid_y + 12, 260, mid_y + 12, 1)
+            max_vis = (split_y - mid_y - 32) // ROW_H
             scroll = max(0, self._flipper_sel - max_vis + 1)
             files = self._flipper_files
             for i in range(scroll, min(len(files), scroll + max_vis)):
-                y = mid_y + 14 + (i - scroll) * 10
+                y = mid_y + 16 + (i - scroll) * ROW_H
                 sel = (i == self._flipper_sel)
                 if sel:
-                    pyxel.rect(8, y - 1, 400, 9, C_WARNING)
+                    pyxel.rect(8, y - 1, 400, ROW_H - 2, C_WARNING)
                 c = 0 if sel else C_TEXT
                 _, display = files[i]
-                pyxel.text(10, y, f"[TX] {display}", c)
-            pyxel.text(10, split_y - 10,
+                pyxel.text(10, y + 1, f"[TX] {display}", c)
+            pyxel.text(10, split_y - 12,
                        "ENTER=transmit  ESC=back", C_DIM)
 
         elif self._flipper_mode == "nfc_emulate":
             pyxel.text(10, mid_y + 2, "NFC CARDS — select to emulate", C_HACK_CYAN)
-            pyxel.line(10, mid_y + 10, 260, mid_y + 10, 1)
-            max_vis = (split_y - mid_y - 30) // 10
+            pyxel.line(10, mid_y + 12, 270, mid_y + 12, 1)
+            max_vis = (split_y - mid_y - 32) // ROW_H
             scroll = max(0, self._flipper_sel - max_vis + 1)
             files = self._flipper_files
             for i in range(scroll, min(len(files), scroll + max_vis)):
-                y = mid_y + 14 + (i - scroll) * 10
+                y = mid_y + 16 + (i - scroll) * ROW_H
                 sel = (i == self._flipper_sel)
                 if sel:
-                    pyxel.rect(8, y - 1, 400, 9, 12)
+                    pyxel.rect(8, y - 1, 400, ROW_H - 2, 12)
                 c = 0 if sel else C_TEXT
                 _, display = files[i]
-                pyxel.text(10, y, f"[NFC] {display}", c)
-            pyxel.text(10, split_y - 10,
+                pyxel.text(10, y + 1, f"[NFC] {display}", c)
+            pyxel.text(10, split_y - 12,
                        "ENTER=emulate  ESC=back", C_DIM)
 
         elif self._flipper_mode == "nfc_active":
             pyxel.text(10, mid_y + 2, "NFC EMULATION — ACTIVE", 12)
             dots = "." * ((pyxel.frame_count // 15) % 4)
-            pyxel.text(10, mid_y + 14, f"Card emulating{dots}", C_SUCCESS)
-            pyxel.text(10, mid_y + 26,
+            pyxel.text(10, mid_y + 16, f"Card emulating{dots}", C_SUCCESS)
+            pyxel.text(10, mid_y + 30,
                        "Hold Flipper near reader", C_DIM)
-            pyxel.text(200, mid_y + 2, "[X] or [ESC] to stop", C_DIM)
+            pyxel.text(220, mid_y + 2, "[X] or [ESC] to stop", C_DIM)
 
         elif self._flipper_mode == "rx_active":
             pyxel.text(10, mid_y + 2, "SIGNAL SCANNER — LIVE", C_HACK_CYAN)
             freq_txt = "Listening for signals..."
-            pyxel.text(10, mid_y + 14, freq_txt, C_SUCCESS)
+            pyxel.text(10, mid_y + 16, freq_txt, C_SUCCESS)
             dots = "." * ((pyxel.frame_count // 15) % 4)
-            pyxel.text(10, mid_y + 26, f"Scanning{dots}", C_DIM)
-            pyxel.text(200, mid_y + 2, "[X] or [ESC] to stop", C_DIM)
+            pyxel.text(10, mid_y + 30, f"Scanning{dots}", C_DIM)
+            pyxel.text(220, mid_y + 2, "[X] or [ESC] to stop", C_DIM)
 
-        # Bottom: log output
+        # Bottom: log output (9px per line for 5x8 font)
         pyxel.line(1, split_y, W - 2, split_y, C_COAST)
-        pyxel.text(6, split_y + 2, "OUTPUT", C_DIM)
+        pyxel.text(6, split_y + 3, "OUTPUT", C_DIM)
         cnt = len(self._flipper_log)
-        pyxel.text(60, split_y + 2, f"({cnt} lines)", C_DIM)
-        log_y = split_y + 12
-        max_lines = (H - log_y - 4) // 8
+        pyxel.text(70, split_y + 3, f"({cnt} lines)", C_DIM)
+        log_y = split_y + 14
+        LINE_H = 9
+        max_lines = (H - log_y - 4) // LINE_H
         total = len(self._flipper_log)
         if self._flipper_scroll == 0:
             start = max(0, total - max_lines)
@@ -5643,45 +5646,49 @@ class WatchDogsGame:
         y = log_y
         for i in range(start, end):
             text, color = self._flipper_log[i]
-            pyxel.text(6, y, text[:80], color)
-            y += 8
+            pyxel.text(6, y, text[:120], color)
+            y += LINE_H
             if y >= H - 4:
                 break
 
     def _draw_flash_screen(self):
         """Draw board picker overlay for firmware flash."""
         from .config import FLASH_BOARDS
-        dw, dh = 300, 100
+        ROW_H = 14
+        boards = list(FLASH_BOARDS.items())
+        dw = 340
+        dh = max(120, 50 + len(boards) * ROW_H + 24)
         dx = (W - dw) // 2
         dy = (H - dh) // 2
         pyxel.rect(dx, dy, dw, dh, 0)
         pyxel.rectb(dx, dy, dw, dh, C_WARNING)
         pyxel.rectb(dx + 1, dy + 1, dw - 2, dh - 2, C_COAST)
-        pyxel.text(dx + 4, dy + 3, "FLASH ESP32 — Select Board", C_WARNING)
-        pyxel.line(dx + 2, dy + 11, dx + dw - 3, dy + 11, C_COAST)
+        pyxel.text(dx + 4, dy + 4, "FLASH ESP32 — Select Board", C_WARNING)
+        pyxel.line(dx + 2, dy + 14, dx + dw - 3, dy + 14, C_COAST)
 
         if self._flash_running:
-            pyxel.text(dx + 4, dy + 20, "Flashing in progress...", C_HACK_CYAN)
-            pyxel.text(dx + 4, dy + 32, "Check terminal for status", C_DIM)
-            pyxel.text(dx + 4, dy + dh - 12, "ESC to close", C_DIM)
+            pyxel.text(dx + 4, dy + 22, "Flashing in progress...", C_HACK_CYAN)
+            pyxel.text(dx + 4, dy + 36, "Check terminal for status", C_DIM)
+            pyxel.text(dx + 4, dy + dh - 14, "ESC to close", C_DIM)
         else:
-            fw_info = f"Current: v{self._fw_version}" if self._fw_version else "Current: unknown"
+            fw_info = (f"Current: v{self._fw_version}"
+                       if self._fw_version else "Current: unknown")
             if self._fw_update_available:
                 fw_info += f" -> v{self._fw_remote_version}"
-            pyxel.text(dx + 4, dy + 14, fw_info, C_DIM)
+            pyxel.text(dx + 4, dy + 18, fw_info, C_DIM)
 
-            y = dy + 28
-            boards = list(FLASH_BOARDS.items())
+            y = dy + 34
             for i, (key, profile) in enumerate(boards):
                 sel = (i == self._flash_sel)
                 if sel:
-                    pyxel.rect(dx + 2, y - 1, dw - 4, 13, C_WARNING)
+                    pyxel.rect(dx + 2, y - 1, dw - 4, ROW_H - 1, C_WARNING)
                 c = 0 if sel else C_TEXT
                 pyxel.text(dx + 6, y + 2, f"[{i+1}]", 0 if sel else C_DIM)
-                pyxel.text(dx + 24, y + 2, profile["label"], c)
-                y += 14
+                pyxel.text(dx + 28, y + 2, profile["label"], c)
+                y += ROW_H
 
-            pyxel.text(dx + 4, dy + dh - 12, "UP/DOWN  ENTER flash  ESC cancel", C_DIM)
+            pyxel.text(dx + 4, dy + dh - 14,
+                       "UP/DOWN  ENTER flash  ESC cancel", C_DIM)
 
     def _draw_captured_data(self):
         """Draw overlay showing captured credentials from portal/evil twin."""
@@ -6043,57 +6050,59 @@ class WatchDogsGame:
         """Draw the MITM sub-screen (full overlay like loot_screen)."""
         pyxel.cls(0)
         st = self._mitm_state
+        BAR_H = 14  # title/status bar height (8px text + padding)
 
         # ── Info bar (top) ──
-        pyxel.rect(0, 0, W, 12, 1)
+        pyxel.rect(0, 0, W, BAR_H, 1)
         if self._mitm.running:
             victims = ", ".join(ip for ip, _ in self._mitm._victims[:4])
             if len(self._mitm._victims) > 4:
                 victims += f" +{len(self._mitm._victims) - 4}"
             gw = self._mitm._gateway_ip
             info = f"MITM RUNNING | {victims} <-> {gw} | Packets: {self._mitm.packets}"
-            pyxel.text(4, 3, info, C_WARNING)
+            pyxel.text(4, 4, info, C_WARNING)
         else:
-            pyxel.text(4, 3, "MITM -- idle", C_DIM)
+            pyxel.text(4, 4, "MITM -- idle", C_DIM)
 
         # ── Status bar (bottom) ──
-        pyxel.rect(0, H - 12, W, 12, 1)
+        pyxel.rect(0, H - BAR_H, W, BAR_H, 1)
         if st == "running":
-            pyxel.text(4, H - 9, "[X]Stop", C_ERROR)
+            pyxel.text(4, H - 10, "[X]Stop", C_ERROR)
         elif st == "idle":
-            pyxel.text(4, H - 9, "[S]Start  [ESC]Back", C_DIM)
+            pyxel.text(4, H - 10, "[S]Start  [ESC]Back", C_DIM)
         elif st in ("iface", "target_mode", "scan"):
-            pyxel.text(4, H - 9, "[Enter]Select  [ESC]Cancel", C_DIM)
+            pyxel.text(4, H - 10, "[Enter]Select  [ESC]Cancel", C_DIM)
         elif st == "confirm":
-            pyxel.text(4, H - 9, "[Y]Yes  [N]No", C_DIM)
+            pyxel.text(4, H - 10, "[Y]Yes  [N]No", C_DIM)
         elif st == "error":
-            pyxel.text(4, H - 9, "[ESC]Back", C_DIM)
+            pyxel.text(4, H - 10, "[ESC]Back", C_DIM)
         elif st == "scan_all":
-            pyxel.text(4, H - 9, "Scanning...  [ESC]Cancel", C_DIM)
+            pyxel.text(4, H - 10, "Scanning...  [ESC]Cancel", C_DIM)
 
         # ── Dividers ──
-        pyxel.line(0, 12, W - 1, 12, C_MENU_BORDER)
-        pyxel.line(0, H - 13, W - 1, H - 13, C_MENU_BORDER)
+        pyxel.line(0, BAR_H, W - 1, BAR_H, C_MENU_BORDER)
+        pyxel.line(0, H - BAR_H - 1, W - 1, H - BAR_H - 1, C_MENU_BORDER)
 
         # ── Content area ──
-        CY = 16  # content start Y
-        CH = H - 30  # content height
+        CY = BAR_H + 4       # content start Y
+        CH = H - BAR_H * 2 - 6  # content height
+        ROW_H = 12           # 5x8 font
 
         if st == "idle":
             pyxel.text(20, CY + 10, "MITM -- ARP Spoofing Attack", C_HACK_CYAN)
-            pyxel.text(20, CY + 26, "Intercepts traffic between victim(s)", C_TEXT)
-            pyxel.text(20, CY + 34, "and the network gateway.", C_TEXT)
-            pyxel.text(20, CY + 50, "Captures: DNS queries, HTTP requests,", C_DIM)
-            pyxel.text(20, CY + 58, "cleartext credentials (FTP/Telnet/POP3)", C_DIM)
-            pyxel.text(20, CY + 74, "Saves full pcap to loot/mitm/", C_DIM)
-            pyxel.text(20, CY + 94, "Press [S] to start", C_HACK_CYAN)
+            pyxel.text(20, CY + 32, "Intercepts traffic between victim(s)", C_TEXT)
+            pyxel.text(20, CY + 42, "and the network gateway.", C_TEXT)
+            pyxel.text(20, CY + 62, "Captures: DNS queries, HTTP requests,", C_DIM)
+            pyxel.text(20, CY + 72, "cleartext credentials (FTP/Telnet/POP3)", C_DIM)
+            pyxel.text(20, CY + 92, "Saves full pcap to loot/mitm/", C_DIM)
+            pyxel.text(20, CY + 116, "Press [S] to start", C_HACK_CYAN)
 
         elif st == "iface":
             pyxel.text(20, CY + 6, "Select interface:", C_HACK_CYAN)
             for i, (iface, ip) in enumerate(self._mitm_ifaces):
-                ty = CY + 20 + i * 12
+                ty = CY + 24 + i * ROW_H
                 if i == self._mitm_sel:
-                    pyxel.rect(18, ty - 1, W - 36, 10, C_HACK_CYAN)
+                    pyxel.rect(18, ty - 2, W - 36, ROW_H, C_HACK_CYAN)
                     pyxel.text(22, ty, f"{iface} ({ip})", 0)
                 else:
                     pyxel.text(22, ty, f"{iface} ({ip})", C_TEXT)
@@ -6106,9 +6115,9 @@ class WatchDogsGame:
                 "3. All devices on subnet",
             ]
             for i, opt in enumerate(options):
-                ty = CY + 22 + i * 14
+                ty = CY + 26 + i * (ROW_H + 2)
                 if i == self._mitm_sel:
-                    pyxel.rect(18, ty - 2, W - 36, 12, C_HACK_CYAN)
+                    pyxel.rect(18, ty - 2, W - 36, ROW_H + 2, C_HACK_CYAN)
                     pyxel.text(22, ty, opt, 0)
                 else:
                     pyxel.text(22, ty, opt, C_TEXT)
@@ -6117,57 +6126,64 @@ class WatchDogsGame:
             if not self._mitm_hosts:
                 pyxel.text(20, CY + 20, ">>> Scanning subnet...", C_HACK_CYAN)
             else:
-                pyxel.text(20, CY + 6, f"Found {len(self._mitm_hosts)} hosts:", C_HACK_CYAN)
+                pyxel.text(20, CY + 6, f"Found {len(self._mitm_hosts)} hosts:",
+                           C_HACK_CYAN)
                 for i, (ip, mac) in enumerate(self._mitm_hosts[:15]):
-                    ty = CY + 20 + i * 10
+                    ty = CY + 24 + i * ROW_H
                     label = f"{ip}  ({mac})"
                     if i == self._mitm_sel:
-                        pyxel.rect(18, ty - 1, W - 36, 9, C_HACK_CYAN)
+                        pyxel.rect(18, ty - 2, W - 36, ROW_H, C_HACK_CYAN)
                         pyxel.text(22, ty, label, 0)
                     else:
                         pyxel.text(22, ty, label, C_TEXT)
 
         elif st == "scan_all":
-            pyxel.text(20, CY + 20, ">>> Scanning all hosts on subnet...", C_WARNING)
-            pyxel.text(20, CY + 34, "Please wait", C_DIM)
+            pyxel.text(20, CY + 20, ">>> Scanning all hosts on subnet...",
+                       C_WARNING)
+            pyxel.text(20, CY + 38, "Please wait", C_DIM)
 
         elif st == "error":
             pyxel.text(20, CY + 20, "ERROR", C_ERROR)
-            pyxel.text(20, CY + 36, self._mitm_error or "Unknown error", C_WARNING)
+            pyxel.text(20, CY + 40, self._mitm_error or "Unknown error",
+                       C_WARNING)
             # Show recent log messages for context
             with self._mitm_lock:
                 recent = list(self._mitm_log[-8:])
             for i, (txt, _) in enumerate(recent):
-                pyxel.text(20, CY + 56 + i * 8, txt[:100], C_DIM)
-            pyxel.text(20, CY + 56 + len(recent) * 8 + 12,
+                pyxel.text(20, CY + 60 + i * 10, txt[:120], C_DIM)
+            pyxel.text(20, CY + 60 + len(recent) * 10 + 14,
                        "Press [ESC] or [ENTER] to go back", C_HACK_CYAN)
 
         elif st == "confirm":
             # Dialog overlay
-            dw, dh = 300, 70
+            dw, dh = 340, 90
             dx = (W - dw) // 2
             dy = (H - dh) // 2
             pyxel.rect(dx, dy, dw, dh, 0)
             pyxel.rectb(dx, dy, dw, dh, C_HACK_CYAN)
             pyxel.text(dx + 4, dy + 4, "-- Confirm --", C_HACK_CYAN)
-            pyxel.text(dx + 8, dy + 16, "Start MITM attack?", C_TEXT)
+            pyxel.text(dx + 8, dy + 20, "Start MITM attack?", C_TEXT)
             if self._mitm_victim_ip:
-                pyxel.text(dx + 8, dy + 26, f"Victim: {self._mitm_victim_ip}", C_TEXT)
+                pyxel.text(dx + 8, dy + 32,
+                           f"Victim: {self._mitm_victim_ip}", C_TEXT)
             elif self._mitm_hosts:
-                pyxel.text(dx + 8, dy + 26, f"Victims: {len(self._mitm_hosts)} hosts", C_TEXT)
+                pyxel.text(dx + 8, dy + 32,
+                           f"Victims: {len(self._mitm_hosts)} hosts", C_TEXT)
             else:
-                pyxel.text(dx + 8, dy + 26, "Victims: all on subnet", C_TEXT)
+                pyxel.text(dx + 8, dy + 32,
+                           "Victims: all on subnet", C_TEXT)
             gw = self._mitm.get_default_gateway() or "?"
-            pyxel.text(dx + 8, dy + 36, f"Gateway: {gw}", C_TEXT)
-            pyxel.text(dx + 8, dy + 46, f"Interface: {self._attack_iface}", C_TEXT)
-            pyxel.text(dx + 8, dy + 58, "[Y] Yes   [N] No", C_DIM)
+            pyxel.text(dx + 8, dy + 44, f"Gateway: {gw}", C_TEXT)
+            pyxel.text(dx + 8, dy + 56,
+                       f"Interface: {self._attack_iface}", C_TEXT)
+            pyxel.text(dx + 8, dy + 74, "[Y] Yes   [N] No", C_DIM)
 
         elif st == "running":
-            # Live scrolling log
+            # Live scrolling log (9px per line for 5x8 font)
             with self._mitm_lock:
                 log_snap = list(self._mitm_log)
             total = len(log_snap)
-            line_h = 7
+            line_h = 9
             max_vis = CH // line_h
             if self._mitm_log_scroll == 0:
                 start = max(0, total - max_vis)
@@ -6351,43 +6367,48 @@ class WatchDogsGame:
         # Background
         pyxel.rect(0, 0, W, H, 0)
 
-        # Title bar
+        # Title bar — 14px tall for 5x8 font + padding
+        BAR_H = 14
         if self._watch.connected:
             title = f"PIPBOY WATCH — {self._watch.device_name}"
             bat = self._watch.battery
-            pyxel.rect(0, 0, W, 12, 1)
-            pyxel.text(4, 3, title, C_SUCCESS)
+            pyxel.rect(0, 0, W, BAR_H, 1)
+            pyxel.text(4, 4, title, C_SUCCESS)
             if bat > 0:
-                bc = C_SUCCESS if bat > 25 else (C_WARNING if bat > 10 else C_ERROR)
-                pyxel.text(W - 50, 3, f"BAT:{bat}%", bc)
+                bc = C_SUCCESS if bat > 25 else (
+                    C_WARNING if bat > 10 else C_ERROR)
+                pyxel.text(W - 60, 4, f"BAT:{bat}%", bc)
         else:
-            pyxel.rect(0, 0, W, 12, 1)
-            pyxel.text(4, 3, "PIPBOY WATCH — SCAN", C_HACK_CYAN)
+            pyxel.rect(0, 0, W, BAR_H, 1)
+            pyxel.text(4, 4, "PIPBOY WATCH — SCAN", C_HACK_CYAN)
 
         # PIN entry overlay
         if self._watch.pin_requested:
             cy = H // 2
-            pyxel.rect(W // 2 - 100, cy - 30, 200, 60, 1)
-            pyxel.rectb(W // 2 - 100, cy - 30, 200, 60, C_WARNING)
-            pyxel.text(W // 2 - 60, cy - 20, "ENTER PIN FROM WATCH", C_WARNING)
+            pyxel.rect(W // 2 - 120, cy - 40, 240, 80, 1)
+            pyxel.rectb(W // 2 - 120, cy - 40, 240, 80, C_WARNING)
+            pyxel.text(W // 2 - 60, cy - 28, "ENTER PIN FROM WATCH", C_WARNING)
             # PIN digits
-            pin_disp = self._watch_pin_input + "_" * (6 - len(self._watch_pin_input))
+            pin_disp = self._watch_pin_input + "_" * (
+                6 - len(self._watch_pin_input))
             pyxel.text(W // 2 - 20, cy, pin_disp, C_TEXT)
-            pyxel.text(W // 2 - 40, cy + 16, "[0-9] Type  [ENTER] Confirm", C_DIM)
+            pyxel.text(W // 2 - 70, cy + 22,
+                       "[0-9] Type  [ENTER] Confirm", C_DIM)
             return
 
         # Scanning / device list
         if not self._watch.connected:
-            y = 20
+            y = BAR_H + 6
             if self._watch.scanning:
                 dots = "." * ((pyxel.frame_count // 10) % 4)
-                pyxel.text(4, y, f"Scanning for PipBoy devices{dots}", C_HACK_CYAN)
-                y += 14
+                pyxel.text(4, y, f"Scanning for PipBoy devices{dots}",
+                           C_HACK_CYAN)
+                y += 16
 
             results = self._watch.scan_results
             if results:
                 pyxel.text(4, y, "PipBoy devices found:", C_SUCCESS)
-                y += 12
+                y += 14
                 for i, dev in enumerate(results):
                     sel = i == self._watch_scan_sel
                     c = C_TEXT if sel else C_DIM
@@ -6395,29 +6416,29 @@ class WatchDogsGame:
                     pyxel.text(8, y,
                                f"{prefix} {dev['name']}  {dev['address']}  "
                                f"RSSI:{dev['rssi']}", c)
-                    y += 10
+                    y += 12
 
             if not self._watch.scanning and not results:
                 pyxel.text(4, y, "No PipBoy devices found", C_WARNING)
-                y += 14
+                y += 16
 
             # Scan log (show what BLE found)
-            y += 6
+            y += 8
             pyxel.text(4, y, "-- BLE Scan Log --", C_DIM)
-            y += 10
+            y += 12
             # Pull recent watch log lines from terminal
             with self._term_lock:
                 watch_lines = [l for l in self.terminal_lines[-30:]
                                if "[Watch]" in l]
             for line in watch_lines[-10:]:
-                pyxel.text(8, y, line[:78], C_DIM)
-                y += 8
+                pyxel.text(8, y, line[:100], C_DIM)
+                y += 10
 
             # Checklist
             cx = 340
-            cy = 20
+            cy = BAR_H + 6
             pyxel.text(cx, cy, "-- Pairing Checklist --", C_HACK_CYAN)
-            cy += 14
+            cy += 16
             checks = [
                 "1. Watch BLE enabled (WiFi app > BLE ON)",
                 "2. Watch advertising as PipBoy-xxxxx",
@@ -6427,9 +6448,9 @@ class WatchDogsGame:
             ]
             for check in checks:
                 pyxel.text(cx, cy, check, C_DIM)
-                cy += 10
+                cy += 12
 
-            pyxel.text(4, H - 12,
+            pyxel.text(4, H - 14,
                        "[R] Rescan  [ENTER] Connect  [ESC] Back", C_DIM)
             return
 
@@ -6594,24 +6615,27 @@ class WatchDogsGame:
             pyxel.text(20, 50, "No entries.", C_DIM)
             pyxel.text(20, 65, "Press [A] to add a device.", C_DIM)
         else:
-            y = 18
-            max_vis = (H - 40) // 10
+            ROW_H = 12
+            y = 20
+            max_vis = (H - 44) // ROW_H
             start = max(0, self._wl_sel - max_vis + 1)
             for i in range(start, min(len(entries), start + max_vis)):
                 e = entries[i]
                 sel = (i == self._wl_sel)
                 if sel:
-                    pyxel.rect(2, y - 1, W - 4, 10, 1)
+                    pyxel.rect(2, y - 1, W - 4, ROW_H, 1)
                 tag = "WiFi" if e.type == "wifi" else " BLE"
                 tc = C_SUCCESS if e.type == "wifi" else C_HACK_CYAN
                 lbl = f"[{tag}] {e.mac}  {e.name[:24]}"
-                pyxel.text(6, y + 1, lbl, tc if not sel else 7)
-                pyxel.text(W - 70, y + 1, e.added_date[:10], C_DIM)
-                y += 10
+                pyxel.text(6, y + 2, lbl, tc if not sel else 7)
+                pyxel.text(W - 80, y + 2, e.added_date[:10], C_DIM)
+                y += ROW_H
 
         # Bottom bar
-        pyxel.rect(0, H - 12, W, 12, 1)
-        pyxel.text(4, H - 9, "[A]Add manual  [S]Scan & Select  [D]Delete  [ESC]Back", C_DIM)
+        pyxel.rect(0, H - 14, W, 14, 1)
+        pyxel.text(4, H - 10,
+                   "[A]Add manual  [S]Scan & Select  [D]Delete  [ESC]Back",
+                   C_DIM)
 
     def _draw_wl_scan_select(self):
         """Draw the scan-and-select device picker for whitelist."""
@@ -6619,35 +6643,35 @@ class WatchDogsGame:
         # Sub-title + scan status
         scanning = self._wl_scan_status
         title = f"Select device to whitelist  ({len(items)} found)"
-        pyxel.text(4, 16, title, C_TEXT)
+        pyxel.text(4, 18, title, C_TEXT)
         if scanning and pyxel.frame_count % 30 < 20:
             status = "WiFi scanning..." if scanning == "wifi" else "BLE scanning..."
-            pyxel.text(4 + len(title) * 4 + 4, 16, status, C_WARNING)
+            pyxel.text(4 + len(title) * 5 + 8, 18, status, C_WARNING)
 
         if not items:
             pyxel.text(20, 50, "No devices discovered yet.", C_DIM)
-            pyxel.text(20, 70, "Press [W] to scan WiFi", C_SUCCESS)
-            pyxel.text(20, 82, "Press [B] to scan BLE", C_HACK_CYAN)
-            pyxel.text(20, 98, "List auto-refreshes after scan.", C_DIM)
-            pyxel.rect(0, H - 12, W, 12, 1)
-            pyxel.text(4, H - 9,
+            pyxel.text(20, 72, "Press [W] to scan WiFi", C_SUCCESS)
+            pyxel.text(20, 86, "Press [B] to scan BLE", C_HACK_CYAN)
+            pyxel.text(20, 104, "List auto-refreshes after scan.", C_DIM)
+            pyxel.rect(0, H - 14, W, 14, 1)
+            pyxel.text(4, H - 10,
                        "[W]WiFi scan  [B]BLE scan  [R]Refresh  [ESC]Back",
                        C_DIM)
             return
 
         # Column headers
-        hdr_y = 28
+        hdr_y = 32
         pyxel.text(6, hdr_y, "Type", C_DIM)
-        pyxel.text(40, hdr_y, "Name/SSID", C_DIM)
-        pyxel.text(220, hdr_y, "MAC", C_DIM)
-        pyxel.text(360, hdr_y, "RSSI", C_DIM)
-        pyxel.text(400, hdr_y, "Info", C_DIM)
+        pyxel.text(44, hdr_y, "Name/SSID", C_DIM)
+        pyxel.text(240, hdr_y, "MAC", C_DIM)
+        pyxel.text(380, hdr_y, "RSSI", C_DIM)
+        pyxel.text(420, hdr_y, "Info", C_DIM)
 
         # Rows
-        row_h = 10
-        max_vis = (H - 52) // row_h
+        row_h = 12
+        max_vis = (H - 58) // row_h
         start = max(0, self._wl_scan_sel - max_vis + 1)
-        y = hdr_y + 10
+        y = hdr_y + 12
         for i in range(start, min(len(items), start + max_vis)):
             it = items[i]
             sel = (i == self._wl_scan_sel)
@@ -6659,22 +6683,22 @@ class WatchDogsGame:
             tc = C_SUCCESS if is_wifi else C_HACK_CYAN
             c = 7 if sel else tc
 
-            pyxel.text(6, y + 1, f"[{tag}]", tc)
-            pyxel.text(40, y + 1, (it["name"] or "???")[:28], c)
-            pyxel.text(220, y + 1, it["mac"], c)
-            pyxel.text(360, y + 1, str(it["rssi"]), C_DIM)
-            pyxel.text(400, y + 1, it["extra"][:12], C_DIM)
+            pyxel.text(6, y + 2, f"[{tag}]", tc)
+            pyxel.text(44, y + 2, (it["name"] or "???")[:32], c)
+            pyxel.text(240, y + 2, it["mac"], c)
+            pyxel.text(380, y + 2, str(it["rssi"]), C_DIM)
+            pyxel.text(420, y + 2, it["extra"][:12], C_DIM)
             y += row_h
 
         # Scroll indicator
         if len(items) > max_vis:
-            bar_h = max(4, (H - 52) * max_vis // len(items))
-            bar_y = 38 + (H - 52 - bar_h) * start // max(1, len(items) - max_vis)
+            bar_h = max(4, (H - 58) * max_vis // len(items))
+            bar_y = 44 + (H - 58 - bar_h) * start // max(1, len(items) - max_vis)
             pyxel.rect(W - 3, bar_y, 2, bar_h, C_DIM)
 
         # Bottom bar
-        pyxel.rect(0, H - 12, W, 12, 1)
-        pyxel.text(4, H - 9,
+        pyxel.rect(0, H - 14, W, 14, 1)
+        pyxel.text(4, H - 10,
                    "[ENTER]Add [W]WiFi [B]BLE [R]Refresh [ESC]Back", C_DIM)
 
     # ------------------------------------------------------------------
@@ -6940,8 +6964,9 @@ class WatchDogsGame:
 
     def _draw_mc_screen(self):
         pyxel.cls(0)
-        # Title bar with channel indicator
-        pyxel.rect(0, 0, W, 12, 1)
+        # Title bar — 14px tall for 5x8 font + padding
+        BAR_H = 14
+        pyxel.rect(0, 0, W, BAR_H, 1)
         status = "ACTIVE" if self._lora.running else "OFF"
         pkts = self._lora.packets_received
         ch_name = "?"
@@ -6949,10 +6974,10 @@ class WatchDogsGame:
             ch_name = self._mc_channels_list[self._mc_active_ch].name
         if self._mc_dm_target:
             dm_name = self._mc_dm_target.get("name", "?")
-            pyxel.text(4, 3, f"MESHCORE [DM: {dm_name}] [{status}] "
+            pyxel.text(4, 4, f"MESHCORE [DM: {dm_name}] [{status}] "
                        f"pkts:{pkts} node:{self._mc_node_name}", 12)
         else:
-            pyxel.text(4, 3, f"MESHCORE [{ch_name}] [{status}] "
+            pyxel.text(4, 4, f"MESHCORE [{ch_name}] [{status}] "
                        f"pkts:{pkts} node:{self._mc_node_name} "
                        f"nodes:{len(self._mc_nodes)}", C_HACK_CYAN)
 
@@ -6961,14 +6986,13 @@ class WatchDogsGame:
             "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
             "acelnoszzACELNOSZZ")
 
-        # Chat log (use big font if available)
-        bf = self._big_font
+        # Chat log — now uses the global Spleen 5x8 via pyxel.text monkey-patch
         log = self._mc_log
         total = len(log)
-        line_h = 10 if bf else 6
-        char_w = 8 if bf else 4
-        chat_top = 14
-        chat_bot = H - 22
+        line_h = 10
+        char_w = 5
+        chat_top = BAR_H + 2
+        chat_bot = H - 24
         # Reserve line for char counter when typing
         msg_bot = chat_bot - (line_h if self._mc_input else 0)
         max_vis = (msg_bot - chat_top) // line_h
@@ -6990,67 +7014,70 @@ class WatchDogsGame:
             tag_chars = len(tag) + 1 if tag else 0  # +1 for gap
             first_max = (W - 8) // char_w - tag_chars
             wrap_max = (W - 8) // char_w  # continuation lines use full width
-            pyxel.text(4, y, full[:first_max], color, bf)
+            pyxel.text(4, y, full[:first_max], color)
             if tag:
                 tx = W - len(tag) * char_w - 4
-                pyxel.text(tx, y, tag, C_DIM, bf)
+                pyxel.text(tx, y, tag, C_DIM)
             y += line_h
             # Wrap remaining text
             pos = first_max
             while pos < len(full) and y < msg_bot:
-                pyxel.text(4, y, full[pos:pos + wrap_max], color, bf)
+                pyxel.text(4, y, full[pos:pos + wrap_max], color)
                 pos += wrap_max
                 y += line_h
             if y >= msg_bot:
                 break
 
         if total == 0:
-            pyxel.text(20, chat_top + 30, "No messages yet.", C_DIM, bf)
-            pyxel.text(20, chat_top + 42,
-                       "Type a message and press ENTER to send.", C_DIM, bf)
+            pyxel.text(20, chat_top + 40, "No messages yet.", C_DIM)
+            pyxel.text(20, chat_top + 54,
+                       "Type a message and press ENTER to send.", C_DIM)
 
         # Scroll indicator
         if self._mc_scroll > 0:
-            pyxel.text(W - 100, chat_top, f"SCROLL +{self._mc_scroll}", C_DIM, bf)
+            pyxel.text(W - 120, chat_top, f"SCROLL +{self._mc_scroll}", C_DIM)
 
-        # Input bar (scroll right when text exceeds width)
+        # Input bar
         cursor = "_" if pyxel.frame_count % 30 < 20 else ""
         prefix = "DM> " if self._mc_dm_target else "> "
         bar_bg = 12 if self._mc_dm_target else 1
         bar_fg = 0 if self._mc_dm_target else C_TEXT
-        pyxel.rect(0, chat_bot, W, 12, bar_bg)
+        pyxel.rect(0, chat_bot, W, 14, bar_bg)
         visible_w = (W - 8) // char_w - len(prefix)
         inp = self._mc_input
         if len(inp) > visible_w:
             inp = inp[len(inp) - visible_w:]
-        pyxel.text(4, chat_bot + 2, f"{prefix}{inp}{cursor}", bar_fg, bf)
+        pyxel.text(4, chat_bot + 3, f"{prefix}{inp}{cursor}", bar_fg)
 
         # Character counter above input bar (right side)
         inp_len = len(self._mc_input)
         if inp_len > 0:
             at_max = inp_len >= 120
-            cnt_c = C_ERROR if at_max else (C_WARNING if inp_len > 100 else C_DIM)
+            cnt_c = C_ERROR if at_max else (
+                C_WARNING if inp_len > 100 else C_DIM)
             cnt_txt = f"{inp_len}/120"
-            pyxel.text(W - len(cnt_txt) * char_w - 4, chat_bot - line_h, cnt_txt, cnt_c, bf)
+            pyxel.text(W - len(cnt_txt) * char_w - 4, chat_bot - line_h,
+                       cnt_txt, cnt_c)
             # Flash "MAX" warning when limit reached
             if at_max and pyxel.frame_count % 40 < 25:
-                pyxel.text(W - len(cnt_txt) * char_w - 40, chat_bot - line_h,
-                           "MAX", C_ERROR, bf)
+                pyxel.text(W - len(cnt_txt) * char_w - 45,
+                           chat_bot - line_h, "MAX", C_ERROR)
 
-        # Contacts panel overlay
+        # Contacts panel overlay — 12px rows for 5x8 font
         if self._mc_nodes_panel and self._mc_nodes:
-            pw = 260
+            pw = 280
             px_x = W - pw - 2
-            panel_top = 14
+            panel_top = BAR_H + 2
             panel_bot = chat_bot - 14
-            row_h = 10
-            max_vis = (panel_bot - 24) // row_h
+            row_h = 12
+            max_vis = (panel_bot - 28) // row_h
             pyxel.rect(px_x, panel_top, pw, panel_bot, 0)
             pyxel.rectb(px_x, panel_top, pw, panel_bot, 2)
-            pyxel.text(px_x + 4, 16,
+            pyxel.text(px_x + 4, panel_top + 4,
                        f"CONTACTS ({len(self._mc_nodes)})", 2)
-            pyxel.text(px_x + pw - 80, 16, "ENTER=action", C_DIM)
-            pyxel.line(px_x + 2, 24, px_x + pw - 3, 24, 1)
+            pyxel.text(px_x + pw - 90, panel_top + 4, "ENTER=action", C_DIM)
+            pyxel.line(px_x + 2, panel_top + 14,
+                       px_x + pw - 3, panel_top + 14, 1)
             _type_icons = {0: "C", 1: "C", 2: "R", 3: "M", 4: "S",
                            "Client": "C", "Repeater": "R",
                            "Room": "M", "Sensor": "S"}
@@ -7059,7 +7086,7 @@ class WatchDogsGame:
                 self._mc_node_sel, len(self._mc_nodes) - 1))
             # Scroll to keep selection visible
             scroll_off = max(0, self._mc_node_sel - max_vis + 1)
-            ny = 27
+            ny = panel_top + 18
             for idx in range(scroll_off,
                              min(len(self._mc_nodes), scroll_off + max_vis)):
                 nd = self._mc_nodes[idx]
@@ -7274,95 +7301,96 @@ class WatchDogsGame:
 
     def _draw_loot_screen(self):
         pyxel.cls(0)
+        ROW_H = 10   # 8px text + 2px gap for 5x8 font
         # Border + header
         pyxel.rectb(1, 1, W - 2, H - 2, C_HACK_CYAN)
-        pyxel.rect(2, 2, W - 4, 11, 1)
-        pyxel.text(6, 4, "LOOT DATABASE", C_HACK_CYAN)
-        pyxel.text(110, 4, "//", C_COAST)
-        pyxel.text(120, 4, "ESP32 WATCH DOGS", C_DIM)
-        pyxel.text(W - 66, 4, "[`] close", C_DIM)
-        pyxel.line(1, 13, W - 2, 13, C_HACK_CYAN)
+        pyxel.rect(2, 2, W - 4, 14, 1)
+        pyxel.text(6, 5, "LOOT DATABASE", C_HACK_CYAN)
+        pyxel.text(120, 5, "//", C_COAST)
+        pyxel.text(134, 5, "ESP32 WATCH DOGS", C_DIM)
+        pyxel.text(W - 70, 5, "[`] close", C_DIM)
+        pyxel.line(1, 16, W - 2, 16, C_HACK_CYAN)
 
         t = self._loot_totals
-        col1, col2, col3 = 10, 220, 430  # 3 columns
+        col1, col2, col3 = 10, 230, 440  # 3 columns
 
         # ─── COLUMN 1: ALL-TIME TOTALS ───
-        y = 18
+        y = 22
         pyxel.text(col1, y, "ALL-TIME TOTALS", C_HACK_CYAN)
-        pyxel.line(col1, y + 8, col1 + 90, y + 8, 1)
-        y += 12
+        pyxel.line(col1, y + 10, col1 + 100, y + 10, 1)
+        y += 14
         pyxel.text(col1, y, f"Sessions", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('sessions', 0)}", C_TEXT)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('sessions', 0)}", C_TEXT)
+        y += ROW_H
         pyxel.text(col1, y, f"WiFi nets", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('wifi', 0)}", C_SUCCESS)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('wifi', 0)}", C_SUCCESS)
+        y += ROW_H
         pyxel.text(col1, y, f"BT devices", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('bt', 0)}", C_HACK_CYAN)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('bt', 0)}", C_HACK_CYAN)
+        y += ROW_H
         pyxel.text(col1, y, f"Handshakes", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('pcap', 0)}", C_ERROR)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('pcap', 0)}", C_ERROR)
+        y += ROW_H
         pyxel.text(col1, y, f"HC22000", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('hs', 0)}", C_ERROR)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('hs', 0)}", C_ERROR)
+        y += ROW_H
         t_pwd_all = t.get('passwords', 0) + t.get('et_captures', 0)
         pyxel.text(col1, y, f"Passwords", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t_pwd_all}", 12)  # blue
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t_pwd_all}", 12)  # blue
+        y += ROW_H
         pyxel.text(col1, y, f"MC Nodes", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('mc_nodes', 0)}", C_WARNING)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('mc_nodes', 0)}", C_WARNING)
+        y += ROW_H
         pyxel.text(col1, y, f"MC Msgs", C_DIM)
-        pyxel.text(col1 + 72, y, f"{t.get('mc_msgs', 0)}", C_WARNING)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{t.get('mc_msgs', 0)}", C_WARNING)
+        y += ROW_H
         n_contacts = len(self.loot.load_contacts()) if self.loot else 0
         pyxel.text(col1, y, f"Contacts", C_DIM)
-        pyxel.text(col1 + 72, y, f"{n_contacts}", C_HACK_CYAN)
-        y += 9
+        pyxel.text(col1 + 80, y, f"{n_contacts}", C_HACK_CYAN)
+        y += ROW_H
         pyxel.text(col1, y, f"GPS points", C_DIM)
-        pyxel.text(col1 + 72, y, f"{len(self.loot_points)}", C_TEXT)
+        pyxel.text(col1 + 80, y, f"{len(self.loot_points)}", C_TEXT)
 
         # ─── COLUMN 2: THIS SESSION ───
-        y = 18
+        y = 22
         pyxel.text(col2, y, "THIS SESSION", C_HACK_CYAN)
-        pyxel.line(col2, y + 8, col2 + 90, y + 8, 1)
-        y += 12
+        pyxel.line(col2, y + 10, col2 + 100, y + 10, 1)
+        y += 14
         n_hs_ses = sum(1 for m in self.markers if m.type == "handshake")
         n_pwn = (sum(1 for d in self.ble_devices if d.hacked)
                  + sum(1 for n in self.wifi_networks if n.hacked))
         pyxel.text(col2, y, f"WiFi", C_DIM)
-        pyxel.text(col2 + 60, y, f"{len(self.wifi_networks)}", C_SUCCESS)
-        y += 9
+        pyxel.text(col2 + 70, y, f"{len(self.wifi_networks)}", C_SUCCESS)
+        y += ROW_H
         pyxel.text(col2, y, f"BLE", C_DIM)
-        pyxel.text(col2 + 60, y, f"{len(self.ble_devices)}", C_HACK_CYAN)
-        y += 9
+        pyxel.text(col2 + 70, y, f"{len(self.ble_devices)}", C_HACK_CYAN)
+        y += ROW_H
         pyxel.text(col2, y, f"Handshakes", C_DIM)
-        pyxel.text(col2 + 60, y, f"{n_hs_ses}", C_ERROR)
-        y += 9
+        pyxel.text(col2 + 70, y, f"{n_hs_ses}", C_ERROR)
+        y += ROW_H
         n_pwd_ses = (self.state.submitted_forms
                      + len(self.state.evil_twin_captured_data))
         pyxel.text(col2, y, f"Passwords", C_DIM)
-        pyxel.text(col2 + 60, y, f"{n_pwd_ses}", 12)  # blue
-        y += 9
+        pyxel.text(col2 + 70, y, f"{n_pwd_ses}", 12)  # blue
+        y += ROW_H
         pyxel.text(col2, y, f"Hacked", C_DIM)
-        pyxel.text(col2 + 60, y, f"{n_pwn}", C_SUCCESS)
-        y += 12
+        pyxel.text(col2 + 70, y, f"{n_pwn}", C_SUCCESS)
+        y += 14
         # XP bar
         lv = self.level_title
         pyxel.text(col2, y, f"LV:{self.level}", C_SUCCESS)
-        pyxel.text(col2 + 28, y, lv, C_HACK_CYAN)
-        y += 9
+        pyxel.text(col2 + 36, y, lv, C_HACK_CYAN)
+        y += ROW_H
         pyxel.text(col2, y, f"XP", C_DIM)
         xw = 60
         nxt = self.xp_for_next_level
         cur = self.xp_in_current_level
         xf = int(xw * cur / nxt) if nxt > 0 else xw
-        pyxel.rect(col2 + 20, y, xw, 6, 1)
-        pyxel.rect(col2 + 20, y, xf, 6, C_HACK_CYAN)
-        pyxel.rectb(col2 + 20, y, xw, 6, C_COAST)
-        pyxel.text(col2 + 84, y, f"{self.xp}", C_DIM)
-        y += 14
+        pyxel.rect(col2 + 24, y, xw, 8, 1)
+        pyxel.rect(col2 + 24, y, xf, 8, C_HACK_CYAN)
+        pyxel.rectb(col2 + 24, y, xw, 8, C_COAST)
+        pyxel.text(col2 + 90, y, f"{self.xp}", C_DIM)
+        y += 16
         # Hat profile badge
         hat_name, hat_color = self._get_hat_profile()
         _HAT_DESC = {
@@ -7372,14 +7400,15 @@ class WatchDogsGame:
             "RED":   "Red Team — active penetration testing",
             "BLACK": "Black Hat — aggressive attack operator",
         }
-        pyxel.circ(col2 + 4, y + 3, 4, 7)          # white outline
-        pyxel.circ(col2 + 4, y + 3, 3, hat_color)   # hat color
-        pyxel.text(col2 + 12, y, f"{hat_name} HAT", hat_color if hat_color != 0 else C_TEXT)
-        y += 9
+        pyxel.circ(col2 + 4, y + 4, 4, 7)          # white outline
+        pyxel.circ(col2 + 4, y + 4, 3, hat_color)   # hat color
+        pyxel.text(col2 + 14, y, f"{hat_name} HAT",
+                   hat_color if hat_color != 0 else C_TEXT)
+        y += ROW_H
         desc = _HAT_DESC.get(hat_name, "")
-        pyxel.text(col2 + 12, y, desc, C_DIM)
-        # Badges (3 columns x 2 rows grid)
-        y += 10
+        pyxel.text(col2 + 14, y, desc, C_DIM)
+        # Badges (3 columns x 2 rows grid) — 5x8 font sizing
+        y += 14
         _BADGE_INFO = [
             ("flipper",          "FLIPPER",   C_WARNING),
             ("wardriver",        "WARDRIVER", C_SUCCESS),
@@ -7392,54 +7421,54 @@ class WatchDogsGame:
         ]
         earned = [(b, l, c) for b, l, c in _BADGE_INFO if b in self._badges]
         cols = 3
-        cw = 68  # column width
+        cw = 72  # column width
         for i, (badge_id, label, color) in enumerate(earned):
             row = i // cols
             col = i % cols
             bx = col2 + col * cw
-            by = y + row * 13
-            lw = len(label) * 4 + 6
-            pyxel.rectb(bx, by, lw, 11, color)
+            by = y + row * 15
+            lw = len(label) * 5 + 6
+            pyxel.rectb(bx, by, lw, 12, color)
             pyxel.text(bx + 2, by + 2, label, color)
 
         # ─── COLUMN 3: STATUS ───
-        y = 18
+        y = 22
         pyxel.text(col3, y, "STATUS", C_HACK_CYAN)
-        pyxel.line(col3, y + 8, col3 + 90, y + 8, 1)
-        y += 12
+        pyxel.line(col3, y + 10, col3 + 80, y + 10, 1)
+        y += 14
         # ESP32
         pyxel.text(col3, y, "ESP32", C_DIM)
         if self._esp32:
-            pyxel.text(col3 + 50, y, "ONLINE", C_SUCCESS)
+            pyxel.text(col3 + 60, y, "ONLINE", C_SUCCESS)
         else:
-            pyxel.text(col3 + 50, y, "OFFLINE", C_ERROR)
-        y += 9
+            pyxel.text(col3 + 60, y, "OFFLINE", C_ERROR)
+        y += ROW_H
         # GPS
         pyxel.text(col3, y, "GPS", C_DIM)
         if self.gps_fix:
-            pyxel.text(col3 + 50, y, "FIX", C_SUCCESS)
+            pyxel.text(col3 + 60, y, "FIX", C_SUCCESS)
         elif self.gps.available:
-            pyxel.text(col3 + 50, y, f"Vis:{self.gps_sats_vis}", C_WARNING)
+            pyxel.text(col3 + 60, y, f"Vis:{self.gps_sats_vis}", C_WARNING)
         else:
-            pyxel.text(col3 + 50, y, "N/A", C_ERROR)
-        y += 9
+            pyxel.text(col3 + 60, y, "N/A", C_ERROR)
+        y += ROW_H
         # AIO modules
         if self._aio_available:
             pyxel.text(col3, y, "LoRa", C_DIM)
-            pyxel.text(col3 + 50, y,
+            pyxel.text(col3 + 60, y,
                        "ON" if self._lora_enabled else "OFF",
                        C_SUCCESS if self._lora_enabled else C_ERROR)
-            y += 9
+            y += ROW_H
             pyxel.text(col3, y, "SDR", C_DIM)
-            pyxel.text(col3 + 50, y,
+            pyxel.text(col3 + 60, y,
                        "ON" if self._sdr_enabled else "OFF",
                        C_SUCCESS if self._sdr_enabled else C_ERROR)
-            y += 9
+            y += ROW_H
             pyxel.text(col3, y, "USB", C_DIM)
-            pyxel.text(col3 + 50, y,
+            pyxel.text(col3 + 60, y,
                        "ON" if self._usb_enabled else "OFF",
                        C_SUCCESS if self._usb_enabled else C_ERROR)
-            y += 9
+            y += ROW_H
         # Active operations
         pyxel.text(col3, y, "Active", C_DIM)
         ops = []
@@ -7450,23 +7479,24 @@ class WatchDogsGame:
         if self.state.portal_running: ops.append("EP")
         if self.state.evil_twin_running: ops.append("ET")
         if self._gps_wait: ops.append("GPS wait")
-        pyxel.text(col3 + 50, y, " ".join(ops) if ops else "idle",
+        pyxel.text(col3 + 60, y, " ".join(ops) if ops else "idle",
                    C_HACK_CYAN if ops else C_DIM)
 
         # ─── BOTTOM: Last discovered devices ───
         # Divider line
-        div_y = 160
+        div_y = 180
         pyxel.line(4, div_y, W - 5, div_y, 1)
-        pyxel.text(6, div_y + 3, "RECENT WiFi", C_SUCCESS)
-        pyxel.text(W // 2 + 4, div_y + 3, "RECENT BLE", C_HACK_CYAN)
-        pyxel.line(4, div_y + 11, W - 5, div_y + 11, 1)
+        pyxel.text(6, div_y + 4, "RECENT WiFi", C_SUCCESS)
+        pyxel.text(W // 2 + 4, div_y + 4, "RECENT BLE", C_HACK_CYAN)
+        pyxel.line(4, div_y + 14, W - 5, div_y + 14, 1)
         # Vertical divider
         mid_x = W // 2
         pyxel.line(mid_x, div_y, mid_x, H - 22, 1)
 
-        # WiFi list (last N)
-        y = div_y + 14
-        max_rows = (H - 22 - y) // 8
+        # WiFi list (last N) — 10px rows for 5x8 font
+        LIST_H = 10
+        y = div_y + 17
+        max_rows = (H - 22 - y) // LIST_H
         recent_wifi = list(reversed(self.wifi_networks[-max_rows:]))
         for n in recent_wifi:
             if y > H - 22:
@@ -7474,14 +7504,14 @@ class WatchDogsGame:
             rssi_c = n.color
             ssid = n.ssid[:14] or "?"
             pyxel.text(6, y, ssid, C_TEXT)
-            pyxel.text(6 + 60, y, f"Ch:{n.channel:>2}", C_DIM)
-            pyxel.text(6 + 88, y, f"{n.rssi}dBm", rssi_c)
+            pyxel.text(6 + 76, y, f"Ch:{n.channel:>2}", C_DIM)
+            pyxel.text(6 + 110, y, f"{n.rssi}dBm", rssi_c)
             if n.hacked:
-                pyxel.text(6 + 120, y, "PWN", C_SUCCESS)
-            y += 8
+                pyxel.text(6 + 150, y, "PWN", C_SUCCESS)
+            y += LIST_H
 
         # BLE list (last N)
-        y = div_y + 14
+        y = div_y + 17
         recent_ble = list(reversed(self.ble_devices[-max_rows:]))
         bx = mid_x + 6
         for d in recent_ble:
@@ -7490,14 +7520,14 @@ class WatchDogsGame:
             rssi_c = d.color
             dname = d.name[:12] or "?"
             pyxel.text(bx, y, dname, C_TEXT)
-            pyxel.text(bx + 52, y, d.mac[-8:], C_DIM)
-            pyxel.text(bx + 90, y, f"{d.rssi}dBm", rssi_c)
+            pyxel.text(bx + 66, y, d.mac[-8:], C_DIM)
+            pyxel.text(bx + 110, y, f"{d.rssi}dBm", rssi_c)
             if d.hacked:
-                pyxel.text(bx + 122, y, "PWN", C_SUCCESS)
-            y += 8
+                pyxel.text(bx + 150, y, "PWN", C_SUCCESS)
+            y += LIST_H
 
         # GPS + controls bar
-        y = H - 16
+        y = H - 18
         pyxel.line(1, y - 3, W - 2, y - 3, 1)
         if self.gps_fix:
             lat_c = "N" if self.player_lat >= 0 else "S"
