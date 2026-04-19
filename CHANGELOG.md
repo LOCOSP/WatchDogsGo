@@ -14,79 +14,208 @@ Readability, performance and data-loss protection. No new gameplay.
 
 ### Added
 
-- **Spleen 5x8 BDF font** (BSD-2-Clause) applied globally via a
-  `pyxel.text` monkey-patch. The built-in 4x6 pyxel font is unreadable on
-  the uConsole panel; Spleen 5x8 is thicker and more legible without
-  giving up much density. The same binary covers every text call in the
-  game — HUD, menus, overlays, dialogs, terminal, MeshCore chat.
-- **MeshCore node + ADS-B aircraft markers** are now drawn as distinct
-  shapes that remain visible at every zoom level — cyan diamond + pulse
-  ring for MeshCore nodes, plus-shaped plane with altitude-colored blink
-  ring for aircraft. Previously they collapsed to a single pixel when
-  zoomed out to continent or globe view.
-- **`loot_manager._fsync_file` / `_sync_append` / `_sync_write`
-  helpers** that call `os.fsync` after every critical append. Used by
-  portal password capture, evil twin capture, wardriving CSV (both WiFi
-  and BLE paths), handshakes (.txt / .pcap / .hccapx), MeshCore nodes
-  and messages, BT devices, AirTag events, attacks log, and the
-  `loot_db.json` atomic-rename write. Previously these went only into
-  the OS page cache and could be lost on a hard power cut.
-- **Periodic background sync thread** (`loot-backup`, daemon). Every
-  30 seconds it `fsync`s the open serial log handle and calls
-  `os.sync()` so anything still sitting in the kernel's dirty-page
-  cache reaches the SD card. Runs off the game loop so the ~100 ms–2 s
-  `os.sync` cost doesn't show up as frame drops. `close()` now stops
-  the thread and runs a final `flush_all + os.sync` before writing the
-  session summary.
+#### Typography — Spleen 5x8 global font
+
+- **`assets/spleen-5x8.bdf`** — [Spleen](https://github.com/fcambus/spleen) by
+  Frederic Cambus, size 5x8, BSD-2-Clause, 76 KB BDF. Glyphs fit 95 ASCII
+  codepoints; Polish letters are transliterated by the MeshCore chat path
+  (`ą→a, ć→c, ę→e, ł→l, ń→n, ó→o, ś→s, ź→z, ż→z`, both cases) since BDF
+  is ASCII-only and our Pyxel build doesn't support Unicode fonts.
+- Loaded in `WatchDogsGame.__init__` as `self._font = pyxel.Font(path)`.
+  The built-in pyxel 4x6 font is kept only as a fallback when the BDF
+  fails to parse.
+- **Applied globally** by monkey-patching `pyxel.text` right after the
+  font loads:
+
+  ```python
+  _orig = pyxel.text
+  _f = self._font
+  def _patched_text(x, y, s, col, font=None, _o=_orig, _f=_f):
+      _o(x, y, s, col, font if font is not None else _f)
+  pyxel.text = _patched_text
+  ```
+
+  This covers ~370 call sites without touching them individually. Calls
+  that pass a font explicitly (e.g. the messenger's legacy 8x8 `_big_font`
+  for some labels) are untouched by the wrapper.
+- Size trade: visible terminal lines drop from ~22 (4x6) to ~12 (5x8),
+  but each line is actually legible on the uConsole panel.
+
+#### Map markers
+
+- **`_draw_markers` now branches on `MapMarker.type`**:
+  - `"meshcore"` → 5x5 cyan diamond (`pyxel.rect` + 4 cardinal `pset`s)
+    with 22/40 frames of an outer `circb` pulse ring at radius 6,
+    label in cyan from zoom ≥ 4.
+  - `"handshake"` → unchanged red skull shape (blinking ring at radius 4,
+    body `rect(-2,-1,5,4)`, crown `rect(-1,-3,3,2)`, warning-colored
+    centre pixel), label from zoom ≥ 5.
+- **`_draw_aircraft`** replaced the old 3-pixel arrow with a 6x5 plus
+  shape: `line(-3,0,+3,0)` wings, `pset(0,-2/-1/+1)` fuselage,
+  `pset(±1,+2)` tail fins, plus a 14/40 frames `circb` pulse at radius 5.
+  Altitude-colored (green < 5 kft, yellow < 20 kft, cyan above).
+  Result: planes and nodes stay visible on globe/continent views where
+  they previously collapsed to a single pixel under the coordinate
+  quantization.
+
+#### Power-cut resilience — event-driven fsync
+
+- New module-level helpers in `watchdogs/loot_manager.py`:
+  - `_fsync_file(fh)` — `fh.flush() + os.fsync(fh.fileno())`, wrapped
+    in `try/except (OSError, ValueError)` so a concurrently-closed
+    handle doesn't crash the call.
+  - `_sync_append(path, text, encoding, newline)` — append wrapper.
+  - `_sync_write(path, text, encoding, newline)` — truncating wrapper.
+- Applied to every save path that produces **unrecoverable** user data:
+
+  | File | Call site | Type |
+  |---|---|---|
+  | `portal_passwords.log` | `save_portal_event` | append |
+  | `evil_twin_capture.log` | `save_evil_twin_event` | append |
+  | `attacks.log` | `log_attack_event` | append |
+  | `wardriving.csv` | `save_wardriving_network` / `save_wardriving_bt` | append + rewrite (on dedupe) |
+  | `scan_results.csv` | `save_scan_results` | truncate |
+  | `sniffer_aps.csv` | `save_sniffer_aps` | truncate |
+  | `sniffer_probes.csv` | `save_sniffer_probes` | truncate |
+  | `meshcore_nodes.csv` | `save_meshcore_node` | append |
+  | `meshcore_messages.log` | `save_meshcore_message` | append |
+  | `bt_devices.csv` | `save_bt_device` | append |
+  | `bt_airtag.log` | `save_bt_airtag_event` | append |
+  | `handshakes/*.txt` | `_save_handshake_txt` | truncate |
+  | `handshakes/*.pcap` | `_save_pcap_stream` | binary truncate |
+  | `handshakes/*.hccapx` | `_save_pcap_stream` | binary truncate |
+  | `loot_db.json` | `_save_db` (tmp write before atomic rename) | truncate |
+
+- Motivation: `with open(path, 'a') as fh: fh.write(...)` only pushes
+  bytes into Python's FileIO buffer → `close()` flushes to the OS page
+  cache → the kernel writes to the block device whenever it feels like
+  it (on default ext4 / f2fs that's ~5–30 s via `dirty_writeback_centisecs`).
+  A hard power cut anywhere in that window loses the data. `os.fsync`
+  issues a FUA / cache-flush SCSI command and doesn't return until the
+  block device confirms the write is on stable media.
+- Cost on the uConsole's eMMC / Class 10 SD: ~5–20 ms per fsync call
+  under typical load. Cheap per event (a captured password fires once),
+  expensive per frame — so the serial log stream deliberately stays on
+  `flush()` only (see next section).
+
+#### Power-cut resilience — periodic background sync
+
+- `LootManager.__init__` starts a `threading.Thread(name="loot-backup",
+  daemon=True)` running `_periodic_backup_loop`.
+- `BACKUP_INTERVAL = 30` seconds. The loop sleeps in 1-second
+  increments so `close()` can flip `_backup_stop = True` and the thread
+  exits within 1 s instead of potentially 30 s — important because
+  `close()` then closes the serial log handle the thread was touching.
+- Each pass calls `flush_all()`:
+  1. `fsync` the open `serial_full.log` file handle (catches each ESP32
+     line that was `flush()`'d but not yet `fsync`'d).
+  2. `os.sync()` — a single syscall that schedules write-out of **all**
+     dirty pages across every mounted filesystem. Handles stragglers
+     from the tile cache, `loot_db.json` rewrites, plugin state files,
+     log rotation, anything else.
+- `os.sync()` latency on a Class 10 SD: 100 ms–2 s depending on
+  backpressure. Running it off the main thread keeps the 30 FPS game
+  loop untouched.
+- `LootManager.close()` now stops the thread, runs a final
+  `flush_all + os.sync`, writes the session summary (also fsync'd),
+  updates `loot_db.json`, and only then closes `self._serial_fh`.
 
 ### Changed
 
-- **Full UI relayout for the new font** — ~60 places that computed
-  widths from `len(text) * 4` or heights as `+6` / `+8` now use 5 / 8,
-  and many hardcoded column offsets were widened. Affects: top and
-  bottom HUDs, XP bar / badges / battery / zoom anchors, main menu tabs
-  and item rows, input dialog fields, confirm-quit and GPS-wait
-  dialogs, Evil Twin and Portal and Flash and Captured-Data pickers,
-  cluster popup, MeshCore chat and contacts panel, Flipper Zero and
-  MITM and Watch and Loot and Whitelist sub-screens, hacker-quip
-  bubble, MeshCore toast and chat bubbles.
-- **MeshCore Messenger no longer uses its private 8x8 `_big_font`** —
-  it now inherits the global Spleen 5x8 so the whole game reads as one
-  font family. `_big_font` is kept loaded for any future overlay that
-  wants it but isn't referenced by the chat path.
-- **Main menu item height** 10 → 13 px; tab height 9 → 12 px.
-- **Terminal scroll hint** now reads `Fn+U/Fn+K scroll` and fits
-  alongside the new line spacing (9 lines visible at 5x8, previously
-  ~22 lines at 4x6 that were too small to read).
+#### UI relayout — from 4x6 to 5x8 metrics
+
+- Most touches are mechanical: `len(text) * 4` → `len(text) * 5`,
+  `y += 6` → `y += 8` (plus 1–2 px gap), row heights bumped 10 → 12
+  or 13, vertical text centering offsets `(h - 6) // 2` → `(h - 8) // 2`.
+- Selected concrete changes (file: `watchdogs/app.py`):
+
+  | Component | Before | After |
+  |---|---|---|
+  | HUD top badge box | `rectb(x, 3, len(label)*4+3, 9)` | `rectb(x, 2, len(label)*5+4, HUD_TOP-4)` |
+  | HUD bottom counter anchors | `4/52/110/146/190/240` | `4/60/125/170/220/270` |
+  | Messages stack spacing | `y -= 8` | `y -= 10` |
+  | Main menu tab height | 9 | 12 |
+  | Main menu item height (`IH`) | 10 | 13 |
+  | Input dialog field height | 16 | 20 |
+  | Input dialog box width | 280 | 320 |
+  | Confirm-quit dialog | 220x64 | 260x78 |
+  | GPS-wait dialog | 260x58 | 280x70 |
+  | Evil Twin picker | 480x220, rows 12 | 540x260, rows 14 |
+  | Portal picker | 360x180 | 420x220 |
+  | Cluster popup | 300 wide, rows 12 | 340 wide, rows 14 |
+  | Captured-data overlay | 500x200, rows 10 | 560x240, rows 12 |
+  | MeshCore toast | `len*6+60`, h=28 | `len*5+60`, h=32 |
+  | MeshCore chat bubble | `len*4+8`, h=10 | `len*5+8`, h=12 |
+  | Hacker-quip bubble | `len*4+16`, h=18 | `len*5+16`, h=20 |
+  | Flipper Zero row height | 12 | 13, ASCII line 7→9 |
+  | MITM row height | 10/12/14 mixed | 12 normalized |
+  | MITM log line height | 7 | 9 |
+  | Watch PIN overlay | 200x60 | 240x80 |
+  | Loot screen column rows | `y += 9` | `y += 10` (`ROW_H` constant) |
+  | Loot bottom list row height | 8 | 10 |
+  | Whitelist row height | 10 | 12 |
+  | Flash picker row height | 13 | 14 (`ROW_H` constant) |
+
+#### MeshCore Messenger font
+
+- `_draw_mc_screen` used to branch on `bf = self._big_font`, producing
+  two parallel code paths with `line_h = 10 if bf else 6` and
+  `char_w = 8 if bf else 4`. The branch is removed and the function
+  now writes plain `pyxel.text(x, y, s, col)` calls that pick up the
+  monkey-patched Spleen 5x8, with `line_h = 10`, `char_w = 5`.
+- `self._big_font` itself is still loaded from `assets/font_8x8.bdf`
+  for potential future use but is no longer passed to any `pyxel.text`
+  call in the codebase.
 
 ### Performance
 
-- **Cluster color and radius cached at `_update_clusters` time**
-  instead of recomputed per frame per cluster. `_cluster_color()` used
-  to iterate every point's `type` on every draw.
-- **Coastline segment bounding boxes precomputed at `__init__`** from
-  the static `COASTLINES` table. `_draw_coastlines` no longer builds
-  `lats`/`lons` list-comprehensions or calls `min`/`max` for each of
-  ~100 segments every frame. The zoom≥5 `pset` pass was merged into
-  the main line-draw loop so `geo_to_screen` runs once per point
-  instead of twice.
-- **Terminal line coloring moved from `_draw_terminal` to
-  `_term_add`** and cached in a parallel `_terminal_colors` list. The
-  draw loop used to re-evaluate ~11 string checks per visible line per
-  frame; now it just indexes into the cached color.
+- **Cluster color / radius cache.** `_update_clusters` (throttled to
+  ~1 Hz by `pyxel.frame_count - self._cluster_frame < 30` plus
+  zoom/center change detection) now writes two extra fields on each
+  cluster dict:
+
+  ```python
+  cl["color"] = C_HACK_CYAN if bt > wifi else C_SUCCESS
+  cl["radius"] = min(5 + cl["count"] // 3, 12)
+  ```
+
+  `_draw_loot_points` reads `cl["color"]` / `cl["radius"]` instead of
+  calling the former `_cluster_color(points)` per cluster per frame
+  (which iterated `points` twice counting types).
+- **Coastline bounding boxes.** `__init__` now builds
+  `self._coast_bounds = [(min_lat, max_lat, min_lon, max_lon,
+  antimerid), …]` one entry per segment in `COASTLINES`
+  (~100 segments, ~2200 points). `_draw_coastlines` reads the precomputed
+  bounds instead of rebuilding `lats = [p[0] for p in seg]` /
+  `min()`/`max()` every frame, and the previous double loop that
+  called `geo_to_screen` twice per point at zoom ≥ 5 (once for the
+  line pass, once for the `pset` pass) was collapsed into a single
+  pass.
+- **Terminal color cache.** `_term_add` now computes the display color
+  at append time via a new module-level `_color_for_terminal_line(line)`
+  (which still does the 11 `startswith` / `in` checks), and stores it
+  in a parallel `self._terminal_colors: list[int]` deque-trimmed to
+  500 like `self.terminal_lines`. `_draw_terminal` indexes
+  `colors_snap[i]` instead of re-evaluating all 11 checks per visible
+  line per frame.
 
 Combined, these three changes free roughly 10–20 ms of the 33 ms / 30 FPS
-budget on the uConsole, measurably smoother when the map has many loot
+budget on the uConsole, measurably smoother when the map holds many loot
 points and the terminal is actively streaming.
 
 ### Fixed
 
-- **`loot_db.json` power-cut window** — the atomic-rename write now
-  `fsync`s the tmp file before `rename`, so a crash between write and
-  rename can't leave a zero-byte `loot_db.json`.
+- **`loot_db.json` zero-byte window.** `_save_db` writes to
+  `loot_db.tmp` then calls `Path.replace` which is atomic on the same
+  filesystem, but the old code didn't fsync the tmp file before the
+  rename — a crash between those two calls left a zero-byte
+  `loot_db.json` next boot. The fix adds `_fsync_file(fh)` inside the
+  tmp-write's `with` block so the on-disk bytes are durable before the
+  rename flips the directory entry.
 - **MeshCore nodes and ADS-B aircraft rendered identically** to
-  handshake markers (small red skull) because `_draw_markers` didn't
-  branch on `MapMarker.type`. They now have their own look.
+  handshake markers (a small red skull) because `_draw_markers` didn't
+  branch on `MapMarker.type`. They now have the distinct shapes
+  described in Added above.
 
 ---
 
