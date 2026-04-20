@@ -269,7 +269,12 @@ class WatchManager:
             self._events.put(("error", "bleak not installed"))
             return
 
-        # Register D-Bus agent for PIN pairing (in background thread)
+        # Register D-Bus agent for PIN pairing (in background thread).
+        # Watch firmware ≥ v0.4 requires MITM-authenticated encryption on
+        # the NUS characteristics: the first NUS write/notify-subscribe
+        # returns Insufficient Authentication (0x05) which BlueZ resolves
+        # by calling our agent's RequestPasskey. Agent needs to be up
+        # before pairing is triggered.
         agent_thread = threading.Thread(
             target=self._run_dbus_agent, daemon=True)
         agent_thread.start()
@@ -281,6 +286,13 @@ class WatchManager:
         if not dev:
             self._events.put(("error", f"Device {address} not found in scan"))
             return
+
+        # Pre-pair via bluetoothctl if the watch isn't bonded yet. Doing this
+        # explicitly (instead of relying on bleak's implicit retry when GATT
+        # returns Insufficient Authentication) is more reliable on BlueZ —
+        # it keeps the PIN prompt inside a well-defined flow and lets us
+        # mark the device trusted before the GATT session starts.
+        await self._ensure_paired(address)
 
         self._events.put(("status", f"Connecting to {dev.name or address}..."))
 
@@ -424,6 +436,45 @@ class WatchManager:
 
         else:
             self._events.put(("log", f"[Watch] {json.dumps(msg)}"))
+
+    # ------------------------------------------------------------------
+    # Pairing helper — explicit bluetoothctl pair/trust before GATT
+    # ------------------------------------------------------------------
+    async def _ensure_paired(self, address: str):
+        """If the watch isn't paired + trusted yet, drive `bluetoothctl pair`
+        so our D-Bus agent gets the PIN prompt, then mark trusted."""
+        import subprocess
+        try:
+            info = subprocess.run(
+                ["bluetoothctl", "info", address],
+                capture_output=True, text=True, timeout=5).stdout
+        except Exception:
+            return  # bluetoothctl missing — bleak's implicit retry will try
+        paired = "Paired: yes" in info
+        trusted = "Trusted: yes" in info
+        if paired and trusted:
+            return  # already bonded; subsequent connect is silent
+
+        self._events.put(("status", "Pairing — check the watch for PIN"))
+        # Runs the pair in a subprocess; D-Bus agent handles the PIN prompt.
+        # 90 s covers user reading PIN from watch + typing it in the overlay.
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["bluetoothctl", "pair", address],
+                capture_output=True, text=True, timeout=90,
+            )
+        except Exception as e:
+            self._events.put(("log", f"[Watch] pair command: {e}"))
+        # Mark trusted so BlueZ skips re-auth prompts on future connects.
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["bluetoothctl", "trust", address],
+                capture_output=True, text=True, timeout=10,
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # D-Bus Agent for PIN pairing

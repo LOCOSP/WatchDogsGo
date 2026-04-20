@@ -174,6 +174,11 @@ if command -v apt-get &>/dev/null; then
     command -v pactl &>/dev/null || SYS_NEEDED="$SYS_NEEDED pulseaudio-utils"
     # pinctrl is used by AIO v2 GPIO toggles (GPS/LoRa/SDR/USB power rails)
     command -v pinctrl &>/dev/null || SYS_NEEDED="$SYS_NEEDED raspi-utils"
+    # python3-gi provides gi.repository.GLib used by the BlueZ pairing agent
+    # for the PipBoy watch. Without it the agent silent-fails and the new
+    # firmware (MITM-authenticated NUS) can't complete pairing.
+    python3 -c "from gi.repository import GLib" 2>/dev/null || \
+        SYS_NEEDED="$SYS_NEEDED python3-gi"
 
     if [ -n "$SYS_NEEDED" ]; then
         info "Installing:$SYS_NEEDED"

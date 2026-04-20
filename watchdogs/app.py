@@ -6408,18 +6408,25 @@ class WatchDogsGame:
             pyxel.rect(0, 0, W, BAR_H, 1)
             pyxel.text(4, 4, "PIPBOY WATCH — SCAN", C_HACK_CYAN)
 
-        # PIN entry overlay
+        # PIN entry overlay — watch firmware since v0.4 requires MITM-
+        # authenticated encryption on NUS. First connect displays a 6-digit
+        # PIN on the watch screen; user types it here, bond is stored and
+        # subsequent connects are silent.
         if self._watch.pin_requested:
             cy = H // 2
-            pyxel.rect(W // 2 - 120, cy - 40, 240, 80, 1)
-            pyxel.rectb(W // 2 - 120, cy - 40, 240, 80, C_WARNING)
-            pyxel.text(W // 2 - 60, cy - 28, "ENTER PIN FROM WATCH", C_WARNING)
-            # PIN digits
+            pyxel.rect(W // 2 - 160, cy - 56, 320, 112, 1)
+            pyxel.rectb(W // 2 - 160, cy - 56, 320, 112, C_WARNING)
+            pyxel.text(W // 2 - 60, cy - 44, "PAIRING PIPBOY WATCH", C_WARNING)
+            pyxel.text(W // 2 - 140, cy - 28,
+                       "Look at the watch — it shows a 6-digit PIN.", C_TEXT)
+            pyxel.text(W // 2 - 140, cy - 16,
+                       "Type it here to complete pairing.", C_DIM)
+            # PIN digits — centred, Spleen 5x8 so 6 chars * 5 = 30px wide
             pin_disp = self._watch_pin_input + "_" * (
                 6 - len(self._watch_pin_input))
-            pyxel.text(W // 2 - 20, cy, pin_disp, C_TEXT)
-            pyxel.text(W // 2 - 70, cy + 22,
-                       "[0-9] Type  [ENTER] Confirm", C_DIM)
+            pyxel.text(W // 2 - 18, cy + 4, pin_disp, C_HACK_CYAN)
+            pyxel.text(W // 2 - 90, cy + 28,
+                       "[0-9] Type   [BKSP] Erase   [ENTER] Confirm", C_DIM)
             return
 
         # Scanning / device list
