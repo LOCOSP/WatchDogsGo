@@ -30,11 +30,19 @@ try:
 except Exception:
     _GAME_VERSION = "0.0.0"
 
-# Cloudflare's Bot Fight Mode blocks the default urllib User-Agent
-# ("Python-urllib/3.x") with HTTP 403 error code 1010. Identify ourselves
-# explicitly so the request looks like a legitimate game client rather
-# than unattended scraper traffic.
-USER_AGENT = f"WatchDogsGo/{_GAME_VERSION} (+https://locosp.github.io/WatchDogsGo)"
+# Cloudflare's Bot Fight Mode on wdgwars.pl drops requests that look like
+# scraper traffic (default urllib/requests UA, empty UA) with HTTP 403 +
+# error code 1010. Server-side the wdgwars admin asked for a UA that:
+#   - starts with "WatchDogsGo/<version>" so access logs can identify us
+#   - carries a platform hint so traffic from bench/dev can be told apart
+# Anything except "python-requests/*" or empty passes Cloudflare; the
+# structured format is purely for their telemetry.
+import platform as _plat
+import sys as _sys
+_PLATFORM = "uConsole" if _plat.system() == "Linux" else _plat.system()
+_PYVER = f"{_sys.version_info.major}.{_sys.version_info.minor}"
+USER_AGENT = (f"WatchDogsGo/{_GAME_VERSION} "
+              f"({_PLATFORM}; Python/{_PYVER})")
 
 
 def _open(req: Request, timeout: float = 30):
