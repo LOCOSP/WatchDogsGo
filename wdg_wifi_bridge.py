@@ -5,7 +5,7 @@ Emulates an ESP32 projectZero device over a virtual serial port,
 using the host's WiFi adapter for scanning and built-in BT for BLE.
 
 Usage:
-    sudo python3 wdg_wifi_bridge.py --iface wlan1 --bt-iface hci1 --pty /tmp/esp32-pty
+    sudo python3 wdg_wifi_bridge.py --iface wlan1 --bt-iface hci1 --sniffer-iface wlan2 --pty /tmp/esp32-pty
 
 Then launch game with:
     sudo ./run.sh /tmp/esp32-pty
@@ -226,15 +226,23 @@ def restore_managed_mode(iface: str):
 
 
 class WifiBridge:
-    def __init__(self, iface: str, pty_path: str, bt_iface: str = "hci1"):
+    def __init__(self, iface: str, pty_path: str, bt_iface: str = "hci0",
+                 sniffer_iface: str = "wlan2", loot_dir: str = ""):
         self.iface = iface
         self.pty_path = pty_path
         self.bt_iface = bt_iface
+        self.sniffer_iface = sniffer_iface
+        self.loot_dir = loot_dir or os.path.expanduser("~/python/WatchDogsGo/loot")
         self._master_fd = None
         self._slave_fd = None
         self._running = False
         self._scan_requested = False
         self._lock = threading.Lock()
+        # Packet sniff state
+        self._pkt_proc = None
+        self._pkt_sniff_active = False
+        self._pkt_count = 0
+        self._pkt_file = ""
 
     def start(self):
         # Create PTY
@@ -271,6 +279,7 @@ class WifiBridge:
 
     def stop(self):
         self._running = False
+        self._stop_pkt_sniff()
         if os.path.islink(self.pty_path):
             os.unlink(self.pty_path)
         if self._master_fd:
@@ -308,13 +317,19 @@ class WifiBridge:
             self._write(f"pong v{FIRMWARE_VERSION}\r\n")
 
         elif cmd == "stop":
+            self._stop_pkt_sniff()
             self._write("all stopped\r\n")
 
         elif cmd == "scan_bt":
             threading.Thread(target=self._do_ble_scan, daemon=True).start()
 
+        elif cmd in ("start_pkt_sniff", "start_sniffer"):
+            threading.Thread(target=self._do_pkt_sniff, daemon=True).start()
+
+        elif cmd in ("stop_pkt_sniff", "stop_sniffer", "sniffer_stop"):
+            self._stop_pkt_sniff()
+
         else:
-            # Echo unknown commands so game doesn't hang
             log.debug("Unknown command: %s", cmd)
 
     def _do_scan(self):
@@ -325,7 +340,7 @@ class WifiBridge:
         for i, net in enumerate(networks):
             line = format_network_csv(i, net)
             self._write(line)
-            time.sleep(0.01)  # small delay to avoid flooding serial buffer
+            time.sleep(0.01)
 
         self._write("scan results printed\r\n")
 
@@ -341,17 +356,101 @@ class WifiBridge:
 
         self._write("BLE scan done\r\n")
 
+    # ------------------------------------------------------------------
+    # Packet sniffer (AWUS036ACM / wlan2 in monitor mode)
+    # ------------------------------------------------------------------
+
+    def _do_pkt_sniff(self):
+        """Put sniffer_iface in monitor mode and capture packets with tcpdump."""
+        if self._pkt_sniff_active:
+            self._write("pkt_sniff already running\r\n")
+            return
+
+        log.info("Starting packet sniff on %s", self.sniffer_iface)
+
+        if not set_monitor_mode(self.sniffer_iface):
+            self._write(f"pkt_sniff error: could not set {self.sniffer_iface} to monitor mode\r\n")
+            return
+
+        # Build output path inside current loot session dir
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        out_dir = self.loot_dir
+        os.makedirs(out_dir, exist_ok=True)
+        self._pkt_file = os.path.join(out_dir, f"pkt_sniff_{ts}.pcapng")
+
+        try:
+            self._pkt_proc = subprocess.Popen(
+                ["tcpdump", "-i", self.sniffer_iface, "-w", self._pkt_file,
+                 "--immediate-mode", "-U"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except Exception as e:
+            log.error("tcpdump failed to start: %s", e)
+            self._write(f"pkt_sniff error: {e}\r\n")
+            restore_managed_mode(self.sniffer_iface)
+            return
+
+        self._pkt_sniff_active = True
+        self._pkt_count = 0
+        self._write(f"sniffer start — saving to {self._pkt_file}\r\n")
+        log.info("tcpdump running, saving to %s", self._pkt_file)
+
+        # Count packets by polling tcpdump stderr for stats
+        threading.Thread(target=self._pkt_counter_loop, daemon=True).start()
+
+    def _pkt_counter_loop(self):
+        """Read tcpdump stderr for packet counts and relay to game."""
+        if not self._pkt_proc:
+            return
+        try:
+            for line in self._pkt_proc.stderr:
+                if not self._pkt_sniff_active:
+                    break
+                text = line.decode("utf-8", errors="replace").strip()
+                log.debug("tcpdump: %s", text)
+                # tcpdump prints "N packets captured" on exit
+                m = re.search(r"(\d+) packets captured", text)
+                if m:
+                    self._pkt_count = int(m.group(1))
+                    self._write(f"pkt_count {self._pkt_count}\r\n")
+        except Exception:
+            pass
+
+    def _stop_pkt_sniff(self):
+        """Stop packet capture and restore managed mode."""
+        if not self._pkt_sniff_active:
+            return
+        self._pkt_sniff_active = False
+        if self._pkt_proc:
+            try:
+                self._pkt_proc.terminate()
+                self._pkt_proc.wait(timeout=3)
+            except Exception:
+                try:
+                    self._pkt_proc.kill()
+                except Exception:
+                    pass
+            self._pkt_proc = None
+        restore_managed_mode(self.sniffer_iface)
+        self._write(f"pkt_sniff stopped — saved to {self._pkt_file}\r\n")
+        log.info("Packet sniff stopped, file: %s", self._pkt_file)
+
 
 def main():
     parser = argparse.ArgumentParser(description="WatchDogsGo Linux WiFi + BLE Bridge")
     parser.add_argument("--iface", default="wlan1",
-                        help="WiFi interface to use for scanning (default: wlan1)")
-    parser.add_argument("--bt-iface", default="hci1",
-                        help="Bluetooth interface for BLE scanning (default: hci1)")
+                        help="WiFi interface for scanning (default: wlan1)")
+    parser.add_argument("--bt-iface", default="hci0",
+                        help="Bluetooth interface for BLE scanning (default: hci0)")
+    parser.add_argument("--sniffer-iface", default="wlan2",
+                        help="WiFi interface for packet sniff/HS capture (default: wlan2)")
     parser.add_argument("--pty", default="/tmp/esp32-pty",
                         help="PTY symlink path for WatchDogsGo (default: /tmp/esp32-pty)")
     parser.add_argument("--no-monitor", action="store_true",
-                        help="Skip setting monitor mode (use if already in monitor mode)")
+                        help="Skip setting monitor mode on --iface (wlan1)")
+    parser.add_argument("--loot-dir", default="",
+                        help="Directory to save packet captures (default: ~/python/WatchDogsGo/loot)")
     args = parser.parse_args()
 
     if os.geteuid() != 0:
@@ -366,7 +465,13 @@ def main():
             print(f"ERROR: Could not set {args.iface} to monitor mode", file=sys.stderr)
             sys.exit(1)
 
-    bridge = WifiBridge(args.iface, args.pty, args.bt_iface)
+    bridge = WifiBridge(
+        iface=args.iface,
+        pty_path=args.pty,
+        bt_iface=args.bt_iface,
+        sniffer_iface=args.sniffer_iface,
+        loot_dir=args.loot_dir,
+    )
     try:
         bridge.start()
     finally:
