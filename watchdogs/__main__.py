@@ -203,6 +203,21 @@ def preflight():
 # Main
 # ---------------------------------------------------------------------------
 
+def _looks_like_serial(path: str) -> bool:
+    """Return True if `path` looks like a serial device the game should
+    open as ESP32. Accepts the obvious `/dev/tty*` and Windows `COM*`,
+    plus any existing character device — covers community PTY bridges
+    that emulate the projectZero serial protocol from a non-ESP32
+    radio (e.g. wdg_wifi_bridge.py linking a PTY at /tmp/esp32-pty)."""
+    if path.startswith("/dev/") or path.startswith("COM"):
+        return True
+    try:
+        import stat as _stat
+        return _stat.S_ISCHR(os.stat(path).st_mode)
+    except OSError:
+        return False
+
+
 def _resolve_user_home() -> tuple[str, str | None]:
     """Return (home_dir, sudo_user) — handles sudo elevation."""
     home = os.path.expanduser("~")
@@ -433,7 +448,7 @@ def main():
 
     args = sys.argv[1:]
     for arg in args:
-        if arg.startswith("/dev/") or arg.startswith("COM") or arg.startswith("/tmp/"):
+        if _looks_like_serial(arg):
             serial_port = arg
         else:
             loot_path = arg

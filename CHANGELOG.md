@@ -8,6 +8,135 @@ minor versions.
 
 ---
 
+## [0.9.8] — 2026-04-26
+
+Surface the new `aircraft_already_seen` field that wdgwars.pl now
+returns alongside `aircraft_imported`. Companion to 0.9.6 — the server
+side of the same bug is fixed too: per-user `(user_id, icao)` dedup in
+the `user_aircraft_seen` table with `INSERT IGNORE`, so a re-uploaded
+session correctly credits aircraft that are new for that user.
+
+### Server-side fix (wdgwars.pl, by the portal admin)
+
+> Added `user_aircraft_seen` table (PRIMARY KEY user_id, icao) keyed
+> per-user, INSERT IGNORE on each ICAO during upload — `aircraft_imported`
+> now counts what's actually new for that user. Global
+> `maps_trackedaircraft` stays as the latest-position directory.
+> Plane Spotter / Plane Hunter / Sky Watcher badge counters all
+> switched to the new table; existing badge progress preserved via
+> best-effort backfill from prior `maps_trackedaircraft.uploaded_by_id`.
+
+### Client change
+
+- **`plugins/wardrive_upload.py`** reads the new `aircraft_already_seen`
+  key from the upload response. Successful upload log now shows
+  `+5 ac (3 seen)` instead of just `+5 ac`, so the user can see at a
+  glance how the dedup decided. No effect when the field is missing
+  (graceful default 0) — works against older server builds.
+
+### Reproducer
+
+Fresh user, blank slate:
+
+| step                                  | request ICAOs    | expected response                          |
+|---------------------------------------|------------------|--------------------------------------------|
+| 1. first upload                       | {A,B,C}          | `aircraft_imported: 3, aircraft_already_seen: 0` |
+| 2. same user, re-upload (active session)| {A,B,C,D,E,F,G,H}| `aircraft_imported: 5, aircraft_already_seen: 3` |
+
+Combined with 0.9.6 (active session never marked uploaded), the
+overnight ADS-B bug originally reported by the US user is fully
+addressed end-to-end.
+
+---
+
+## [0.9.7] — 2026-04-26
+
+Accept any character device as a "serial port" so community PTY bridges
+work without patching the entry point.
+
+### Background
+
+GitHub issue [#1](https://github.com/LOCOSP/WatchDogsGo/issues/1)
+(FusedStamen) — uConsole AIO v1 owners cannot get a real ESP32 + AIO v2
+on the same hardware, so the community wrote `wdg_wifi_bridge.py` which
+emulates the projectZero serial protocol on a PTY (`socat … PTY,link=/tmp/esp32-pty`)
+backed by the uConsole's built-in MT7921 (Wi-Fi) and BCM4345 (BLE)
+through `iw scan` and `bleak`. Game arguments only accepted `/dev/*`
+and `COM*` though, so `/tmp/esp32-pty` was getting parsed as a
+**loot path** instead and the game then started its normal ESP32
+auto-detect (which finds nothing).
+
+### Fixed
+
+- **`watchdogs/__main__.py`** — argument detection moved into
+  `_looks_like_serial(path)` which keeps the old `/dev/*` and `COM*`
+  prefixes and additionally accepts any path that `os.stat()` reports
+  as a character device. PTYs created by `socat link=…` follow that
+  test, so `sudo ./run.sh /tmp/esp32-pty` now opens the bridge.
+
+### Compatibility / safety review
+
+- Argv is supplied by whoever launches the game (typically
+  `sudo ./run.sh`) — no new attack surface; the same user already
+  controlled `/dev/ttyUSB0` and any other path passed in.
+- All previously-handled argv shapes keep their existing behaviour:
+  - `/dev/ttyUSB0`, `COM3` → serial (unchanged)
+  - regular files (`/etc/hosts`), directories (`/tmp`), non-existent
+    paths, relative paths → loot path (unchanged)
+  - `/dev/null` → still serial because it lives under `/dev/` (was
+    already serial under the prefix rule)
+- New behaviour:
+  - existing character device outside `/dev/` (e.g. `/tmp/esp32-pty`
+    symlink to `/dev/pts/N`) → serial (was loot path → broken).
+
+---
+
+## [0.9.6] — 2026-04-24
+
+Hotfix for a data-loss bug in `plugins/wardrive_upload.py` reported by
+a US user running ADS-B overnight:
+
+> If you stop wardriving during a session with active ADS-B, it's
+> marked as ready for upload. When a session is uploaded while still
+> active, any data written to it after the upload is lost because the
+> session gets marked as uploaded and never re-queued even though it
+> continued accumulating data overnight. […] 578 unique new ICAOs
+> seen after my upload — these are aircraft the server should have
+> counted as new but apparently didn't.
+
+The user's diagnosis was correct on the client side: as soon as
+`_upload_worker` got an HTTP 200 it added the session directory name
+to `_uploaded_sessions` and persisted that to
+`plugins/.wardrive_state.json`. The currently-recording session — the
+one ADS-B / GPS / MeshCore are still appending to — got the same
+treatment, so any rows written after the upload (overnight aircraft,
+late mesh adverts) silently fell out of the pending queue.
+
+### Fixed
+
+- **Active session is never marked as uploaded**. New helpers
+  `_active_session_name()` and `_mark_uploaded(session_dir)` in
+  `plugins/wardrive_upload.py` gate every place we used to call
+  `_uploaded_sessions.add(name)`. The active session keeps appearing
+  in `_pending_sessions()` until the game starts a fresh session
+  directory — at which point the now-stale session can finally be
+  marked done on the next upload.
+- The upload log explicitly tells the user when this happened:
+  `(active session — kept open for re-upload)` after a successful
+  upload, or `active, will re-check next upload` for a session that
+  was empty at upload time but might still receive data.
+
+### Not fixed (server-side)
+
+The user also flagged a second issue: after manually clearing the
+session from `_uploaded_sessions` and re-uploading, the server only
+credited the new MeshCore nodes and ignored 578 aircraft ICAOs that
+were genuinely first-seen that day. That dedup decision happens
+entirely on the wdgwars.pl side — there is nothing the game can do
+about it. Forwarded to the wdgwars admin separately.
+
+---
+
 ## [0.9.5] — 2026-04-24
 
 Runtime-selectable regional presets for the MeshCore radio. MeshCore
@@ -561,6 +690,9 @@ The major pre-release milestones were:
 - **Bruce Firmware integration** — pull request to upstream
   `BruceDevices/firmware` adding native upload to wdgwars.pl
 
+[0.9.8]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.7...v0.9.8
+[0.9.7]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.6...v0.9.7
+[0.9.6]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/LOCOSP/WatchDogsGo/compare/v0.9.2...v0.9.3
