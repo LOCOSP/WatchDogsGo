@@ -1,0 +1,68 @@
+[
+  {
+    "type": "wifi",
+    "mac": "74:FE:CE:13:AC:F0",
+    "name": "StamenLand",
+    "added_date": "2026-05-02 02:32"
+  },
+  {
+    "type": "ble",
+    "mac": "C5:B6:EA:F5:CE:E7",
+    "name": "Hue bulb",
+    "added_date": "2026-05-02 02:32"
+  },
+  {
+    "type": "ble",
+    "mac": "55:B6:18:DC:6F:D3",
+    "name": "Nanoleaf Strip 222",
+    "added_date": "2026-05-02 02:32"
+  },
+  {
+    "type": "ble",
+    "mac": "F4:82:1C:25:3D:85",
+    "name": "S&B VOLCANO H",
+    "added_date": "2026-05-02 02:32"
+  },
+  {
+    "type": "ble",
+    "mac": "74:51:EE:7B:76:91",
+    "name": "LG OLED65C1",
+    "added_date": "2026-05-02 02:33"
+  },
+  {
+    "type": "ble",
+    "mac": "4A:2A:64:3F:C1:B2",
+    "name": "LG OLED55C9",
+    "added_date": "2026-05-02 02:33"
+  },
+  {
+    "type": "wifi",
+    "mac": "B6:FE:CE:13:AC:EF",
+    "name": "StamenTech",
+    "added_date": "2026-05-02 02:34"
+  },
+  {
+    "type": "wifi",
+    "mac": "74:FE:CE:13:AC:EF",
+    "name": "StamenLand",
+    "added_date": "2026-05-02 02:38"
+  },
+  {
+    "type": "wifi",
+    "mac": "74:FE:CE:13:AC:EE",
+    "name": "StamenLand",
+    "added_date": "2026-05-02 02:39"
+  },
+  {
+    "type": "wifi",
+    "mac": "18:EE:86:31:11:5F",
+    "name": "StamenMobile",
+    "added_date": "2026-05-02 02:39"
+  },
+  {
+    "type": "wifi",
+    "mac": "18:EE:86:31:11:60",
+    "name": "StamenMobile",
+    "added_date": "2026-05-02 02:40"
+  }
+]

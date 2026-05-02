@@ -180,7 +180,7 @@ MENU_CATS = [
     ("SYSTEM", [
         ("x", "STOP ALL",        "stop",                   "_stop_all",    None),
         ("r", "Reboot ESP32",    "_reboot_esp32",          "_reboot",      None),
-        ("m", "Download Map (WIP)", "_download_map",       "_dl_map",      None),
+        ("m", "Download Map",       "_download_map",       "_dl_map",      None),
         ("g", "GPS",             "_toggle_gps",            "_gps_toggle",  None),
         ("l", "LoRa",            "_toggle_lora",           "_lora_toggle", None),
         ("d", "SDR",             "_toggle_sdr",            "_sdr_toggle",  None),
@@ -1655,9 +1655,11 @@ class WatchDogsGame:
             self.msg("[SYS] Reboot command sent", C_DIM)
             return
         if state_key == "_dl_map":
-            # Temporarily disabled — needs rework (tile source, quota, resume)
-            self.msg("[MAP] Download disabled — work in progress", C_WARNING)
-            self.msg("[MAP] Feature will return in a future update", C_DIM)
+            if self._map_downloading:
+                self._map_download_cancel = True
+                self.msg("[MAP] Cancelling download...", C_WARNING)
+            else:
+                self._start_map_download()
             return
         if state_key == "_bt_hid_wip":
             self.msg("[HID] BLE HID disabled — work in progress", C_WARNING)
@@ -5541,7 +5543,7 @@ class WatchDogsGame:
             lines = self._flipper.storage_list("/ext/nfc")
             files = []
             for l in lines:
-                if l.startswith("[F]") and ".nfc" in l:
+                if "[F]" in l and ".nfc" in l:
                     fname = l.split("]")[-1].strip().split(" ")[0]
                     path = f"/ext/nfc/{fname}"
                     display = fname.replace(".nfc", "")
@@ -5579,7 +5581,7 @@ class WatchDogsGame:
                 name = l.split("/ext/subghz/")[-1]
                 if "/" not in name and name not in ("assets", "playlist", "remote"):
                     folders.add(name)
-            elif l.startswith("[F] /ext/subghz/") and ".sub" in l:
+            elif "[F]" in l and "/ext/subghz/" in l and ".sub" in l:
                 path = l.split(" ")[1] if " " in l else l[4:]
                 path = path.split(" ")[0]  # remove size
                 fname = path.split("/")[-1]
@@ -5610,7 +5612,7 @@ class WatchDogsGame:
         lines = self._flipper.storage_list(f"/ext/subghz/{folder}")
         files = []
         for l in lines:
-            if l.startswith("[F]") and ".sub" in l:
+            if "[F]" in l and ".sub" in l:
                 fname = l.split("]")[-1].strip().split(" ")[0]
                 path = f"/ext/subghz/{folder}/{fname}"
                 files.append((path, fname))

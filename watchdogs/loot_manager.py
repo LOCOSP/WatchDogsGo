@@ -248,7 +248,7 @@ class LootManager:
         """Count loot items in a single session directory."""
         counts = {"pcap": 0, "hccapx": 0, "hc22000": 0, "passwords": 0, "et_captures": 0,
                   "mc_nodes": 0, "mc_messages": 0, "bt_devices": 0, "bt_airtags": 0,
-                  "bt_smarttags": 0, "bt_devices_gps": 0, "wardriving": 0,
+                  "bt_smarttags": 0, "bt_devices_gps": 0, "wardriving": 0, "adsb": 0,
                   "mitm_pcaps": 0}
         hs_dir = session_path / "handshakes"
         if hs_dir.is_dir():
@@ -339,6 +339,12 @@ class LootManager:
                 counts["wardriving"] = max(0, lines - 2)  # minus pre-header + header
             except OSError:
                 pass
+        adsb_file = session_path / "adsb_aircraft.csv"
+        if adsb_file.is_file():
+            try:
+                counts["adsb"] = max(0, sum(1 for _ in open(adsb_file, encoding="utf-8")) - 1)  # minus header
+            except OSError:
+                pass
         mitm_dir = session_path / "mitm"
         if mitm_dir.is_dir():
             try:
@@ -353,7 +359,7 @@ class LootManager:
         """Recalculate totals from all session entries."""
         keys = ("pcap", "hccapx", "hc22000", "passwords", "et_captures",
                 "mc_nodes", "mc_messages", "bt_devices", "bt_airtags", "bt_smarttags",
-                "bt_devices_gps", "wardriving")
+                "bt_devices_gps", "wardriving", "adsb")
         totals: dict = {k: 0 for k in keys}
         totals["sessions"] = len(db["sessions"])
         for session_counts in db["sessions"].values():
@@ -1190,6 +1196,31 @@ class LootManager:
         path = self._session / "bt_airtag.log"
         ts = datetime.now().strftime("%H:%M:%S")
         _sync_append(path, f"[{ts}] AirTags:{airtags} | SmartTags:{smarttags}\n")
+        self.update_session_loot()
+
+    def save_adsb_aircraft(self, icao: str, callsign: str = "",
+                           lat: float = 0.0, lon: float = 0.0,
+                           alt_ft: int = 0, speed_kt: int = 0,
+                           heading: int = 0) -> None:
+        """Append an ADS-B aircraft to adsb_aircraft.csv (dedup by ICAO). fsync'd."""
+        if not self._session_active or not icao:
+            return
+        path = self._session / "adsb_aircraft.csv"
+        if path.is_file():
+            try:
+                existing = path.read_text(encoding="utf-8")
+            except OSError:
+                existing = ""
+            if f",{icao}," in existing or f"\n{icao}," in existing:
+                return  # already recorded this session
+        else:
+            _sync_write(path, "timestamp,icao,callsign,lat,lon,alt_ft,speed_kt,heading\n")
+        ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        _sync_append(
+            path,
+            f"{ts},{icao},{callsign or ''},"
+            f"{round(lat, 7)},{round(lon, 7)},"
+            f"{alt_ft},{speed_kt},{heading}\n")
         self.update_session_loot()
 
     # ------------------------------------------------------------------
