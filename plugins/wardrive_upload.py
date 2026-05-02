@@ -629,7 +629,7 @@ class WardriveUpload(PluginBase):
                 req = Request(self._api_url, data=payload, method="POST")
                 req.add_header("Content-Type", "application/json")
                 req.add_header("X-API-Key", self._api_key)
-                with _open(req, timeout=30) as resp:
+                with _open(req, timeout=90) as resp:
                     result = json.loads(resp.read().decode())
                     imp = result.get("imported", 0)
                     dup = result.get("duplicates", 0)
@@ -673,7 +673,7 @@ class WardriveUpload(PluginBase):
                         req = Request(self._api_url, data=payload, method="POST")
                         req.add_header("Content-Type", "application/json")
                         req.add_header("X-API-Key", self._api_key)
-                        with _open(req, timeout=30) as resp:
+                        with _open(req, timeout=90) as resp:
                             result = json.loads(resp.read().decode())
                             imp = result.get("imported", 0)
                             self._log_add(f"  Retry OK: +{imp}", 11)
@@ -690,6 +690,14 @@ class WardriveUpload(PluginBase):
                     self._log_add(f"  HTTP {e.code}: {body}", 8)
             except URLError as e:
                 self._log_add(f"  Connection error: {e.reason}", 8)
+            except (TimeoutError, OSError) as e:
+                # Upload likely succeeded but response timed out — mark as
+                # uploaded to prevent re-sending duplicate data on retry.
+                self._log_add(
+                    f"  Timeout — server may have received data. "
+                    f"Marking uploaded to avoid duplicates.", 10)
+                self._mark_uploaded(session_dir)
+                uploaded += 1
             except Exception as e:
                 self._log_add(f"  Error: {e}", 8)
 
