@@ -44,7 +44,7 @@ def _env(*keys: str, default: str = "") -> str:
 
 _secrets = _load_secrets()
 
-BAUD_RATE = 115200
+BAUD_RATE = 460800
 SCAN_TIMEOUT = 15
 READ_TIMEOUT = 2
 SNIFFER_UPDATE_INTERVAL = 1
@@ -151,7 +151,7 @@ FLASH_OFFSETS = FLASH_BOARDS["wroom"]["offsets"]
 
 # GPS module — default: AIO UART on uConsole
 # Override with env vars: WDG_GPS_DEVICE, WDG_GPS_BAUD (legacy: JANOS_GPS_*)
-GPS_DEVICE = _env("WDG_GPS_DEVICE", "JANOS_GPS_DEVICE", default="/dev/ttyAMA0")
+GPS_DEVICE = _env("WDG_GPS_DEVICE", "JANOS_GPS_DEVICE", default="/tmp/gps-pty")
 GPS_BAUD_RATE = int(_env("WDG_GPS_BAUD", "JANOS_GPS_BAUD", default="9600"))
 GPS_PRIVACY_NOISE_DEG = 0.01  # ±0.01° ≈ ±1.1km randomization in private mode
 

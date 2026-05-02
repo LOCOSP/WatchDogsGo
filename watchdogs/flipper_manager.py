@@ -125,7 +125,7 @@ class FlipperManager:
                 pass
         return self.reconnect()
 
-    def send(self, cmd: str) -> list[str]:
+    def send(self, cmd: str, timeout: float = 2.0) -> list[str]:
         """Send command and return response lines (blocking, short timeout)."""
         if not self.connected:
             return []
@@ -138,7 +138,7 @@ class FlipperManager:
                 self._ser.flush()
                 time.sleep(0.3)
                 lines = []
-                deadline = time.time() + 2
+                deadline = time.time() + timeout
                 while time.time() < deadline:
                     if self._ser.in_waiting:
                         raw = self._ser.readline().decode(errors="replace").strip()
@@ -247,7 +247,7 @@ class FlipperManager:
 
     def storage_list(self, path: str = "/ext/subghz") -> list[str]:
         """List files on Flipper SD card."""
-        return self.send(f"storage list {path}")
+        return self.send(f"storage list {path}", timeout=5.0)
 
     def storage_read(self, path: str) -> str:
         """Read file content from Flipper SD card."""
@@ -304,7 +304,7 @@ class FlipperManager:
         """
         self.send_async("nfc")
         time.sleep(0.5)
-        self.send_async(f"emulate {filepath}")
+        self.send_async(f"emulate -f {filepath}")
 
     def nfc_field(self, on: bool = True) -> None:
         """Toggle NFC field on/off."""

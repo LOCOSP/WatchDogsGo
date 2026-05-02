@@ -2507,6 +2507,18 @@ class WatchDogsGame:
                     if ac.icao not in self._sdr_aircraft_xp:
                         self._sdr_aircraft_xp.add(ac.icao)
                         self.gain_xp(10)
+                        if self.loot:
+                            lat = getattr(ac, 'lat', 0.0) or 0.0
+                            lon = getattr(ac, 'lon', 0.0) or 0.0
+                            self.loot.save_adsb_aircraft(
+                                icao=ac.icao,
+                                callsign=getattr(ac, 'callsign', '') or '',
+                                lat=lat,
+                                lon=lon,
+                                alt_ft=int(getattr(ac, 'altitude', 0) or 0),
+                                speed_kt=int(getattr(ac, 'speed', 0) or 0),
+                                heading=int(getattr(ac, 'heading', 0) or 0),
+                            )
                 elif etype == "sensor_new":
                     self.gain_xp(5)
         except Exception:
@@ -3757,6 +3769,7 @@ class WatchDogsGame:
                 "et_captures": t.get("et_captures", 0),
                 "mc_nodes":    t.get("mc_nodes", 0),
                 "mc_msgs":     t.get("mc_messages", 0),
+                "adsb":        t.get("adsb", 0),
             }
         except Exception:
             pass
@@ -5541,7 +5554,7 @@ class WatchDogsGame:
             lines = self._flipper.storage_list("/ext/nfc")
             files = []
             for l in lines:
-                if l.startswith("[F]") and ".nfc" in l:
+                if "[F]" in l and ".nfc" in l:
                     fname = l.split("]")[-1].strip().split(" ")[0]
                     path = f"/ext/nfc/{fname}"
                     display = fname.replace(".nfc", "")
@@ -5579,7 +5592,7 @@ class WatchDogsGame:
                 name = l.split("/ext/subghz/")[-1]
                 if "/" not in name and name not in ("assets", "playlist", "remote"):
                     folders.add(name)
-            elif l.startswith("[F] /ext/subghz/") and ".sub" in l:
+            elif "[F]" in l and "/ext/subghz/" in l and ".sub" in l:
                 path = l.split(" ")[1] if " " in l else l[4:]
                 path = path.split(" ")[0]  # remove size
                 fname = path.split("/")[-1]
@@ -5610,7 +5623,7 @@ class WatchDogsGame:
         lines = self._flipper.storage_list(f"/ext/subghz/{folder}")
         files = []
         for l in lines:
-            if l.startswith("[F]") and ".sub" in l:
+            if "[F]" in l and ".sub" in l:
                 fname = l.split("]")[-1].strip().split(" ")[0]
                 path = f"/ext/subghz/{folder}/{fname}"
                 files.append((path, fname))
@@ -7492,6 +7505,17 @@ class WatchDogsGame:
         y += ROW_H
         pyxel.text(col1, y, f"GPS points", C_DIM)
         pyxel.text(col1 + 80, y, f"{len(self.loot_points)}", C_TEXT)
+        y += ROW_H
+        # Aircraft — prefer server-side deduped count from wardrive plugin
+        _ac_server = 0
+        for _p in self._plugins:
+            if hasattr(_p, '_user_stats'):
+                _ac_server = _p._user_stats.get('aircraft', 0)
+                break
+        _ac_local = t.get('adsb', 0)
+        _ac_total = _ac_server if _ac_server > 0 else _ac_local
+        pyxel.text(col1, y, f"Aircraft", C_DIM)
+        pyxel.text(col1 + 80, y, f"{_ac_total}", 9)  # orange
 
         # ─── COLUMN 2: THIS SESSION ───
         y = 22
@@ -7517,6 +7541,10 @@ class WatchDogsGame:
         y += ROW_H
         pyxel.text(col2, y, f"Hacked", C_DIM)
         pyxel.text(col2 + 70, y, f"{n_pwn}", C_SUCCESS)
+        y += ROW_H
+        n_ac_ses = len(self._sdr.aircraft) if self._sdr and self._sdr.running else 0
+        pyxel.text(col2, y, f"Aircraft", C_DIM)
+        pyxel.text(col2 + 70, y, f"{n_ac_ses}", 9)  # orange
         y += 14
         # XP bar
         lv = self.level_title
