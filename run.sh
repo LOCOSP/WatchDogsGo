@@ -53,4 +53,10 @@ if [ "$(id -u)" -ne 0 ]; then
     fi
 fi
 
-exec sudo -E "$VENV_PYTHON" -m watchdogs "$@"
+# Wait for bridge PTY to be ready
+for i in $(seq 1 10); do
+    [ -e /tmp/esp32-pty ] && break
+    sleep 0.5
+done
+
+exec sudo -E "$VENV_PYTHON" -m watchdogs "${@:-/tmp/esp32-pty}"
