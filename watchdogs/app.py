@@ -180,7 +180,7 @@ MENU_CATS = [
     ("SYSTEM", [
         ("x", "STOP ALL",        "stop",                   "_stop_all",    None),
         ("r", "Reboot ESP32",    "_reboot_esp32",          "_reboot",      None),
-        ("m", "Download Map (WIP)", "_download_map",       "_dl_map",      None),
+        ("m", "Download Map",       "_download_map",       "_dl_map",      None),
         ("g", "GPS",             "_toggle_gps",            "_gps_toggle",  None),
         ("l", "LoRa",            "_toggle_lora",           "_lora_toggle", None),
         ("d", "SDR",             "_toggle_sdr",            "_sdr_toggle",  None),
@@ -1655,9 +1655,11 @@ class WatchDogsGame:
             self.msg("[SYS] Reboot command sent", C_DIM)
             return
         if state_key == "_dl_map":
-            # Temporarily disabled — needs rework (tile source, quota, resume)
-            self.msg("[MAP] Download disabled — work in progress", C_WARNING)
-            self.msg("[MAP] Feature will return in a future update", C_DIM)
+            if self._map_downloading:
+                self._map_download_cancel = True
+                self.msg("[MAP] Cancelling download...", C_WARNING)
+            else:
+                self._start_map_download()
             return
         if state_key == "_bt_hid_wip":
             self.msg("[HID] BLE HID disabled — work in progress", C_WARNING)
@@ -2507,18 +2509,6 @@ class WatchDogsGame:
                     if ac.icao not in self._sdr_aircraft_xp:
                         self._sdr_aircraft_xp.add(ac.icao)
                         self.gain_xp(10)
-                        if self.loot:
-                            lat = getattr(ac, 'lat', 0.0) or 0.0
-                            lon = getattr(ac, 'lon', 0.0) or 0.0
-                            self.loot.save_adsb_aircraft(
-                                icao=ac.icao,
-                                callsign=getattr(ac, 'callsign', '') or '',
-                                lat=lat,
-                                lon=lon,
-                                alt_ft=int(getattr(ac, 'altitude', 0) or 0),
-                                speed_kt=int(getattr(ac, 'speed', 0) or 0),
-                                heading=int(getattr(ac, 'heading', 0) or 0),
-                            )
                 elif etype == "sensor_new":
                     self.gain_xp(5)
         except Exception:
@@ -3769,7 +3759,6 @@ class WatchDogsGame:
                 "et_captures": t.get("et_captures", 0),
                 "mc_nodes":    t.get("mc_nodes", 0),
                 "mc_msgs":     t.get("mc_messages", 0),
-                "adsb":        t.get("adsb", 0),
             }
         except Exception:
             pass
@@ -7505,17 +7494,6 @@ class WatchDogsGame:
         y += ROW_H
         pyxel.text(col1, y, f"GPS points", C_DIM)
         pyxel.text(col1 + 80, y, f"{len(self.loot_points)}", C_TEXT)
-        y += ROW_H
-        # Aircraft — prefer server-side deduped count from wardrive plugin
-        _ac_server = 0
-        for _p in self._plugins:
-            if hasattr(_p, '_user_stats'):
-                _ac_server = _p._user_stats.get('aircraft', 0)
-                break
-        _ac_local = t.get('adsb', 0)
-        _ac_total = _ac_server if _ac_server > 0 else _ac_local
-        pyxel.text(col1, y, f"Aircraft", C_DIM)
-        pyxel.text(col1 + 80, y, f"{_ac_total}", 9)  # orange
 
         # ─── COLUMN 2: THIS SESSION ───
         y = 22
@@ -7541,10 +7519,6 @@ class WatchDogsGame:
         y += ROW_H
         pyxel.text(col2, y, f"Hacked", C_DIM)
         pyxel.text(col2 + 70, y, f"{n_pwn}", C_SUCCESS)
-        y += ROW_H
-        n_ac_ses = len(self._sdr.aircraft) if self._sdr and self._sdr.running else 0
-        pyxel.text(col2, y, f"Aircraft", C_DIM)
-        pyxel.text(col2 + 70, y, f"{n_ac_ses}", 9)  # orange
         y += 14
         # XP bar
         lv = self.level_title

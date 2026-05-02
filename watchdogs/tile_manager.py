@@ -49,8 +49,41 @@ DOWNLOAD_TIERS = [
 ]
 
 OSM_TILE_SIZE = 256
-USER_AGENT = "ESP32WatchDogs/1.0 (security-research-device)"
-TILE_URL = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+USER_AGENT = "WatchDogsGo/1.0 (security-research-game)"
+
+# Stadia Maps — Alidade Smooth Dark style
+# Free tier, raster PNG tiles, dark theme matching game aesthetic
+# API key loaded from secrets.conf (STADIA_API_KEY=...)
+# Sign up free at https://stadiamaps.com
+_STADIA_BASE = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}@2x.png"
+
+
+def _load_stadia_key() -> str:
+    """Load Stadia Maps API key from secrets.conf."""
+    try:
+        from pathlib import Path as _Path
+        conf = _Path(__file__).resolve().parent.parent / "secrets.conf"
+        if conf.is_file():
+            for line in conf.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("STADIA_API_KEY="):
+                    return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _tile_url(z: int, x: int, y: int) -> str:
+    """Build Stadia Maps tile URL with API key if configured."""
+    url = _STADIA_BASE.format(z=z, x=x, y=y)
+    key = _load_stadia_key()
+    if key:
+        url += f"?api_key={key}"
+    return url
+
+
+# Legacy constant kept for compatibility
+TILE_URL = _STADIA_BASE
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +266,7 @@ def download_tiles(lat: float, lon: float, maps_dir: Path,
         if callback:
             callback(done / total * 100, f"{done}/{total} tiles")
 
-        url = TILE_URL.format(z=z, x=tx, y=ty)
+        url = _tile_url(z, tx, ty)
         try:
             req = Request(url, headers={"User-Agent": USER_AGENT})
             with urlopen(req, timeout=10) as resp:
