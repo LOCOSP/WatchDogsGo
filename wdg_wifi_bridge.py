@@ -5,25 +5,27 @@ Emulates an ESP32 projectZero device over a virtual serial port,
 using the host's WiFi adapter for scanning and built-in BT for BLE.
 
 Usage:
-    sudo python3 wdg_wifi_bridge.py --iface wlan1 --bt-iface hci1 --sniffer-iface wlan2 --no-monitor --pty /tmp/esp32-pty
+    sudo python3 wdg_wifi_bridge.py --iface wlan1 --bt-iface hci0 --sniffer-iface wlan2 --no-monitor --pty /tmp/esp32-pty
 
 Then launch game with:
     sudo ./run.sh /tmp/esp32-pty
 
 Changes from original (FusedStamen fork):
-  - BLE fast-fail detection: times each scan and logs a warning if it completes
-    in under 2 seconds with 0 results, indicating the Bluetooth adapter has dropped
   - Scan rate limiter: returns cached results if scan requested within SCAN_COOLDOWN
-    seconds of last scan, preventing mt7921u timeout under rapid game requests
+    seconds of last scan, prevents mt7921u timeout under rapid game requests
+  - Cache fallback: on iw scan timeout, serves last known results instead of empty
   - version command: returns firmware version string the game expects
-  - Handshake/sniffer dispatch: stubs out to external scripts (hs_capture.py,
-    pkt_sniff.py) rather than running inline — bridge stays stable, scripts
-    handle their own hardware
-  - Removed stale wlan1 restore from _stop_hs_capture (was leftover hcxdumptool
-    comment, airodump-ng does not take down all interfaces)
-  - --no-monitor is now the recommended default for uConsole stability
+  - Handshake/sniffer dispatch: Popen-based dispatch to external scripts
+    (hs_capture.py, pkt_sniff.py) with proper start/stop toggle support
+  - SIGTERM handler: cleans up monitor mode and PTY symlink on systemctl stop
+  - Atomic PTY symlink: mkdtemp + rename eliminates TOCTOU race on /tmp
+  - --iface validation: checks iface is not carrying the default route before
+    allowing monitor mode, prevents accidental internet loss
+  - BLE fast-fail detection: warns if scan completes in under 2s with 0 results
+  - Default bt-iface hci0 (CM4 internal UART BT, pinned via udev)
+  - pip advice in log points to venv pip, not --break-system-packages
 
-Dependencies: bleak, iw
+Dependencies: bleak (venv), iw, ip (system)
 Optional: hs_capture.py, pkt_sniff.py (for handshake/sniffer dispatch)
 """
 
@@ -32,8 +34,10 @@ import asyncio
 import logging
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 import threading
 import pty
@@ -48,7 +52,7 @@ except ImportError:
 log = logging.getLogger("wdg_bridge")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-FIRMWARE_VERSION = "1.0.0"
+FIRMWARE_VERSION = "1.6.5"
 BOOT_BANNER = f"WatchDogsGo version: v{FIRMWARE_VERSION}\r\n"
 
 # Minimum seconds between live iw scans — returns cache if called faster
@@ -91,6 +95,18 @@ _OUI = {
 def _vendor_from_bssid(bssid: str) -> str:
     prefix = bssid.upper()[:8]
     return _OUI.get(prefix, "")
+
+
+def _iface_carries_default_route(iface: str) -> bool:
+    """Return True if iface is carrying the system default route."""
+    try:
+        result = subprocess.run(
+            ["ip", "route", "get", "8.8.8.8"],
+            capture_output=True, text=True, timeout=5
+        )
+        return f" dev {iface} " in result.stdout
+    except Exception:
+        return False
 
 
 def scan_wifi(iface: str) -> list[dict]:
@@ -223,7 +239,7 @@ def restore_managed_mode(iface: str):
 
 
 class WifiBridge:
-    def __init__(self, iface: str, pty_path: str, bt_iface: str = "hci1",
+    def __init__(self, iface: str, pty_path: str, bt_iface: str = "hci0",
                  sniffer_iface: str = "wlan2", loot_dir: str = ""):
         self.iface = iface
         self.pty_path = pty_path
@@ -238,17 +254,37 @@ class WifiBridge:
         self._last_scan_time = 0.0
         self._last_scan_results: list[dict] = []
         self._scan_in_progress = False
+        # HS capture state
+        self._hs_proc = None
+        self._hs_active = False
+        # Packet sniff state
+        self._pkt_proc = None
+        self._pkt_active = False
 
     def start(self):
         self._master_fd, self._slave_fd = pty.openpty()
         slave_name = os.ttyname(self._slave_fd)
-        if os.path.exists(self.pty_path) or os.path.islink(self.pty_path):
-            os.unlink(self.pty_path)
-        os.symlink(slave_name, self.pty_path)
+
+        # Atomic PTY symlink — eliminates TOCTOU race on /tmp
+        tmp_dir = tempfile.mkdtemp(dir=os.path.dirname(self.pty_path))
+        tmp_link = os.path.join(tmp_dir, "pty")
+        try:
+            os.symlink(slave_name, tmp_link)
+            os.rename(tmp_link, self.pty_path)
+        finally:
+            try:
+                os.rmdir(tmp_dir)
+            except OSError:
+                pass
+
         log.info("PTY: %s -> %s", self.pty_path, slave_name)
         tty.setraw(self._master_fd)
         self._running = True
         self._write(BOOT_BANNER)
+
+        # SIGTERM handler — clean shutdown on systemctl stop
+        signal.signal(signal.SIGTERM, self._handle_sigterm)
+
         t = threading.Thread(target=self._read_loop, daemon=True)
         t.start()
         log.info("Bridge running. Waiting for game commands on %s", self.pty_path)
@@ -260,12 +296,25 @@ class WifiBridge:
         finally:
             self.stop()
 
+    def _handle_sigterm(self, signum, frame):
+        log.info("SIGTERM received — shutting down cleanly")
+        self.stop()
+        sys.exit(0)
+
     def stop(self):
         self._running = False
+        self._stop_hs()
+        self._stop_pkt()
         if os.path.islink(self.pty_path):
-            os.unlink(self.pty_path)
+            try:
+                os.unlink(self.pty_path)
+            except OSError:
+                pass
         if self._master_fd:
-            os.close(self._master_fd)
+            try:
+                os.close(self._master_fd)
+            except OSError:
+                pass
 
     def _write(self, data: str):
         try:
@@ -299,17 +348,19 @@ class WifiBridge:
         elif cmd == "version":
             self._write(f"WatchDogsGo version: v{FIRMWARE_VERSION}\r\n")
         elif cmd == "stop":
+            self._stop_hs()
+            self._stop_pkt()
             self._write("all stopped\r\n")
         elif cmd == "scan_bt":
             threading.Thread(target=self._do_ble_scan, daemon=True).start()
-        elif cmd in ("start_pkt_sniff", "start_sniffer"):
-            threading.Thread(target=self._dispatch_pkt_sniff, daemon=True).start()
-        elif cmd in ("stop_pkt_sniff", "stop_sniffer", "sniffer_stop"):
-            self._write("sniffer stop: not active\r\n")
         elif cmd in ("start_handshake", "start_handshake_serial"):
-            threading.Thread(target=self._dispatch_hs, daemon=True).start()
+            threading.Thread(target=self._start_hs, daemon=True).start()
         elif cmd == "stop_handshake":
-            self._write("handshake stop: not active\r\n")
+            threading.Thread(target=self._stop_hs, daemon=True).start()
+        elif cmd in ("start_pkt_sniff", "start_sniffer"):
+            threading.Thread(target=self._start_pkt, daemon=True).start()
+        elif cmd in ("stop_pkt_sniff", "stop_sniffer", "sniffer_stop"):
+            threading.Thread(target=self._stop_pkt, daemon=True).start()
         else:
             log.debug("Unknown command: %s", cmd)
 
@@ -321,11 +372,8 @@ class WifiBridge:
         with self._lock:
             now = time.time()
             since_last = now - self._last_scan_time
-
-            # If a scan is already running, wait for it rather than pile on
             if self._scan_in_progress:
                 log.info("Scan already in progress — waiting")
-                # Release lock and poll until done
             elif since_last < SCAN_COOLDOWN and self._last_scan_results:
                 log.info("Returning cached results (%.1fs since last scan, cooldown=%.1fs)",
                          since_last, SCAN_COOLDOWN)
@@ -334,7 +382,6 @@ class WifiBridge:
             else:
                 self._scan_in_progress = True
 
-        # Wait if another scan was already running
         if not self._scan_in_progress:
             deadline = time.time() + 20.0
             while time.time() < deadline:
@@ -347,17 +394,14 @@ class WifiBridge:
         try:
             log.info("Scanning on %s...", self.iface)
             networks = scan_wifi(self.iface)
-
             with self._lock:
                 if networks:
                     self._last_scan_results = networks
                     self._last_scan_time = time.time()
                 elif self._last_scan_results:
-                    # Timeout — return cache rather than empty
                     log.warning("Scan returned 0 results — serving cache (%d networks)",
                                 len(self._last_scan_results))
                     networks = self._last_scan_results
-
             log.info("Found %d networks", len(networks))
             self._send_results(networks)
         finally:
@@ -393,66 +437,133 @@ class WifiBridge:
         self._write("BLE scan done\r\n")
 
     # ------------------------------------------------------------------
-    # Handshake dispatch — calls external hs_capture.py if present
+    # Handshake capture — dispatches to hs_capture.py
     # ------------------------------------------------------------------
 
-    def _dispatch_hs(self):
+    def _start_hs(self):
+        if self._hs_active:
+            self._write("handshake capture already running\r\n")
+            return
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hs_capture.py")
         if not os.path.exists(script):
-            log.warning("hs_capture.py not found — handshake capture unavailable")
+            log.warning("hs_capture.py not found")
             self._write("handshake error: hs_capture.py not found. "
-                        "Plug in AWUS036ACM or XIAO and ensure hs_capture.py is present.\r\n")
+                        "Plug in AWUS036ACM and ensure hs_capture.py is present.\r\n")
             return
+        log.info("Starting handshake capture via %s on %s", script, self.sniffer_iface)
+        self._write("handshake capture starting...\r\n")
         try:
-            log.info("Dispatching handshake capture to %s", script)
-            self._write("handshake capture starting...\r\n")
-            result = subprocess.run(
+            self._hs_proc = subprocess.Popen(
                 [sys.executable, script,
                  "--iface", self.sniffer_iface,
                  "--loot-dir", self.loot_dir],
-                capture_output=True, text=True, timeout=300
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-            for line in result.stdout.splitlines():
-                self._write(line + "\r\n")
-            if result.returncode != 0:
-                log.warning("hs_capture.py exited with %d", result.returncode)
-        except subprocess.TimeoutExpired:
-            log.warning("hs_capture.py timed out")
-            self._write("handshake capture timed out\r\n")
+            self._hs_active = True
+            threading.Thread(target=self._hs_output_loop, daemon=True).start()
         except Exception as e:
-            log.error("hs_capture dispatch error: %s", e)
+            log.error("hs_capture.py failed to start: %s", e)
             self._write(f"handshake error: {e}\r\n")
 
+    def _hs_output_loop(self):
+        """Stream stdout from hs_capture.py back to the game."""
+        if not self._hs_proc:
+            return
+        try:
+            for raw in self._hs_proc.stdout:
+                if not self._hs_active:
+                    break
+                line = raw.decode("utf-8", errors="replace").strip()
+                if line:
+                    log.info("HS: %s", line)
+                    self._write(line + "\r\n")
+        except Exception as e:
+            log.debug("HS output loop error: %s", e)
+        finally:
+            self._hs_active = False
+            log.info("Handshake capture ended")
+
+    def _stop_hs(self):
+        if not self._hs_active and not self._hs_proc:
+            return
+        self._hs_active = False
+        if self._hs_proc:
+            try:
+                self._hs_proc.terminate()
+                self._hs_proc.wait(timeout=5)
+            except Exception:
+                try:
+                    self._hs_proc.kill()
+                except Exception:
+                    pass
+            self._hs_proc = None
+        self._write("handshake capture stopped\r\n")
+        log.info("Handshake capture stopped")
+
     # ------------------------------------------------------------------
-    # Packet sniffer dispatch — calls external pkt_sniff.py if present
+    # Packet sniffer — dispatches to pkt_sniff.py
     # ------------------------------------------------------------------
 
-    def _dispatch_pkt_sniff(self):
+    def _start_pkt(self):
+        if self._pkt_active:
+            self._write("sniffer already running\r\n")
+            return
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pkt_sniff.py")
         if not os.path.exists(script):
-            log.warning("pkt_sniff.py not found — packet sniffer unavailable")
+            log.warning("pkt_sniff.py not found")
             self._write("sniffer error: pkt_sniff.py not found. "
                         "Plug in AWUS036ACM and ensure pkt_sniff.py is present.\r\n")
             return
+        log.info("Starting packet sniffer via %s on %s", script, self.sniffer_iface)
+        self._write("sniffer starting...\r\n")
         try:
-            log.info("Dispatching packet sniffer to %s", script)
-            self._write("sniffer starting...\r\n")
-            result = subprocess.run(
+            self._pkt_proc = subprocess.Popen(
                 [sys.executable, script,
                  "--iface", self.sniffer_iface,
                  "--loot-dir", self.loot_dir],
-                capture_output=True, text=True, timeout=300
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-            for line in result.stdout.splitlines():
-                self._write(line + "\r\n")
-            if result.returncode != 0:
-                log.warning("pkt_sniff.py exited with %d", result.returncode)
-        except subprocess.TimeoutExpired:
-            log.warning("pkt_sniff.py timed out")
-            self._write("sniffer timed out\r\n")
+            self._pkt_active = True
+            threading.Thread(target=self._pkt_output_loop, daemon=True).start()
         except Exception as e:
-            log.error("pkt_sniff dispatch error: %s", e)
+            log.error("pkt_sniff.py failed to start: %s", e)
             self._write(f"sniffer error: {e}\r\n")
+
+    def _pkt_output_loop(self):
+        if not self._pkt_proc:
+            return
+        try:
+            for raw in self._pkt_proc.stdout:
+                if not self._pkt_active:
+                    break
+                line = raw.decode("utf-8", errors="replace").strip()
+                if line:
+                    log.info("PKT: %s", line)
+                    self._write(line + "\r\n")
+        except Exception as e:
+            log.debug("PKT output loop error: %s", e)
+        finally:
+            self._pkt_active = False
+            log.info("Packet sniffer ended")
+
+    def _stop_pkt(self):
+        if not self._pkt_active and not self._pkt_proc:
+            return
+        self._pkt_active = False
+        if self._pkt_proc:
+            try:
+                self._pkt_proc.terminate()
+                self._pkt_proc.wait(timeout=5)
+            except Exception:
+                try:
+                    self._pkt_proc.kill()
+                except Exception:
+                    pass
+            self._pkt_proc = None
+        self._write("sniffer stopped\r\n")
+        log.info("Packet sniffer stopped")
 
     @staticmethod
     def _check_tool(name: str) -> bool:
@@ -464,8 +575,8 @@ def main():
     parser = argparse.ArgumentParser(description="WatchDogsGo Linux WiFi + BLE Bridge")
     parser.add_argument("--iface", default="wlan1",
                         help="WiFi interface for scanning (default: wlan1)")
-    parser.add_argument("--bt-iface", default="hci1",
-                        help="Bluetooth interface for BLE scanning (default: hci1)")
+    parser.add_argument("--bt-iface", default="hci0",
+                        help="Bluetooth interface for BLE scanning (default: hci0)")
     parser.add_argument("--sniffer-iface", default="wlan2",
                         help="WiFi interface for handshake/sniffer dispatch (default: wlan2)")
     parser.add_argument("--pty", default="/tmp/esp32-pty",
@@ -482,9 +593,15 @@ def main():
 
     if not BLEAK_AVAILABLE:
         log.warning("bleak not installed — BLE scanning disabled. "
-                    "Install with: pip install bleak --break-system-packages")
+                    "Install with: .venv/bin/pip install bleak")
 
     if not args.no_monitor:
+        # Validate iface is not carrying the default route before monitor flip
+        if _iface_carries_default_route(args.iface):
+            print(f"ERROR: {args.iface} is carrying the default route. "
+                  f"Setting monitor mode would drop your internet connection. "
+                  f"Use --no-monitor or specify a different --iface.", file=sys.stderr)
+            sys.exit(1)
         if not set_monitor_mode(args.iface):
             print(f"ERROR: Could not set {args.iface} to monitor mode", file=sys.stderr)
             sys.exit(1)
