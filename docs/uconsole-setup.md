@@ -17,8 +17,11 @@ emulate the projectZero serial protocol over a PTY.
 
 ## System Dependencies
 
+`iw` and `dump1090` are installed automatically by `setup.sh` (added in upstream 0.9.4).
+Only install these manually if you are not using `setup.sh`:
+
 ```bash
-sudo apt install -y airodump-ng hcxpcapngtool tshark iw
+sudo apt install -y airodump-ng hcxpcapngtool tshark
 ```
 
 When tshark prompts about non-superuser capture — select **No**.
@@ -202,6 +205,14 @@ Requirements:
 
 The script manages its own monitor mode setup and teardown on `wlan2`.
 Do not put `wlan2` in monitor mode manually while the bridge is running.
+
+## Upstream Compatibility Notes
+
+- **0.9.7** — `_looks_like_serial()` accepts any character device, so `/tmp/esp32-pty`
+  works directly with `sudo ./run.sh /tmp/esp32-pty`. No patching required.
+- **0.9.6** — wardrive plugin no longer marks the active session as uploaded during
+  a concurrent upload, so handshake events fired by the bridge are not silently dropped.
+- **0.9.4** — `setup.sh` installs `iw` and builds `dump1090` from source automatically.
 
 ## Troubleshooting
 
