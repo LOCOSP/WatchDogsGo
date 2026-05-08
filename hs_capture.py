@@ -99,9 +99,18 @@ class HsCapture:
         # airodump-ng appends -01.cap to the prefix
         self._hs_file = self._hs_prefix + "-01.cap"
 
-        if not set_monitor_mode(self.iface):
-            print(f"error: could not set {self.iface} to monitor mode", flush=True)
-            sys.exit(1)
+        # Check if already in monitor mode (e.g. left by deauth)
+        check = subprocess.run(
+            ["iw", "dev", self.iface, "info"],
+            capture_output=True, text=True
+        )
+        already_monitor = "type monitor" in check.stdout
+        if not already_monitor:
+            if not set_monitor_mode(self.iface):
+                print(f"error: could not set {self.iface} to monitor mode", flush=True)
+                sys.exit(1)
+        else:
+            log.info("%s already in monitor mode — skipping mode set", self.iface)
 
         try:
             self._proc = subprocess.Popen(

