@@ -21,3 +21,4 @@ plugins/.wardrive_uploaded.json
 # OS junk
 .DS_Store
 Thumbs.db
+whitelist.json
