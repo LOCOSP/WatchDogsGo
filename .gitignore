@@ -21,3 +21,10 @@ plugins/.wardrive_uploaded.json
 # OS junk
 .DS_Store
 Thumbs.db
+whitelist.json
+watchdogs/app(backup).py
+watchdogs/tile_manager(backup).py
+wdg_wifi_bridge.py.bak
+watchdogs/app(backup).py
+watchdogs/tile_manager(backup).py
+wdg_wifi_bridge.py.bak
