@@ -3952,6 +3952,8 @@ class WatchDogsGame:
             return
         if self._mc_screen:
             self._draw_mc_screen()
+            if self.input_mode:
+                self._draw_input_dialog()
             return
         if self._mc_region_screen:
             self._draw_mc_region_picker()
