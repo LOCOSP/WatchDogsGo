@@ -60,14 +60,36 @@ SCAN_COOLDOWN = 5.0
 
 
 def _auth_from_iw(security: str) -> str:
+    """Classify an AP from the security lines `iw scan` emitted for it.
+
+    `iw` labels modern security as an "RSN:" information element and never
+    prints the literal strings "WPA2"/"WPA3", so matching on those alone
+    classified every WPA2/WPA3 network as OPEN -- 31 of 37 APs in a live
+    scan here. That is not cosmetic: this value feeds loot_manager._AUTH_MAP
+    and is uploaded to WiGLE, so it would publish secured APs as open.
+
+    WPA3 vs WPA2 comes from the AKM suite (SAE = WPA3, PSK+SAE = transition),
+    which is why scan_wifi() also collects "Authentication suites" lines.
+    Returns only tokens loot_manager._AUTH_MAP knows.
+    """
     s = security.upper()
+    # Explicit labels first, for callers passing pre-classified text.
     if "WPA3" in s:
         return "WPA3"
     if "WPA2" in s and "WPA " in s:
         return "WPA/WPA2"
     if "WPA2" in s:
         return "WPA2"
-    if "WPA" in s:
+
+    has_rsn = "RSN:" in s
+    has_wpa = "WPA:" in s
+    if has_rsn and "SAE" in s:
+        return "WPA2/WPA3" if "PSK" in s else "WPA3"
+    if has_rsn and has_wpa:
+        return "WPA/WPA2"
+    if has_rsn:
+        return "WPA2"
+    if has_wpa or "WPA" in s:
         return "WPA"
     if "WEP" in s:
         return "WEP"
@@ -156,7 +178,8 @@ def scan_wifi(iface: str) -> list[dict]:
         if m:
             current["rssi"] = str(int(float(m.group(1))))
             continue
-        if "WPA" in line or "RSN" in line or "WEP" in line:
+        if ("WPA" in line or "RSN" in line or "WEP" in line
+                or "Authentication suites" in line):
             current["security"] += " " + line.strip()
 
     if current.get("bssid"):
@@ -504,6 +527,10 @@ class WifiBridge:
         if self._hs_active:
             self._write("handshake capture already running\r\n")
             return
+        if self._pkt_active:
+            self._write("handshake error: pkt sniffer already active — "
+                        "stop it first\r\n")
+            return
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hs_capture.py")
         if not os.path.exists(script):
             log.warning("hs_capture.py not found")
@@ -568,6 +595,10 @@ class WifiBridge:
     def _start_pkt(self):
         if self._pkt_active:
             self._write("sniffer already running\r\n")
+            return
+        if self._hs_active:
+            self._write("sniffer error: hs capture already active — "
+                        "stop it first\r\n")
             return
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pkt_sniff.py")
         if not os.path.exists(script):
