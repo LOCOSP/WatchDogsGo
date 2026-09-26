@@ -5,11 +5,11 @@ into something bigger, so any extra hands are appreciated.
 
 ## TL;DR
 
-- **Bug reports** → open an [issue](https://github.com/LOCOSP/esp32-watch-dogs/issues),
+- **Bug reports** → open an [issue](https://github.com/LOCOSP/WatchDogsGo/issues),
   attach `~/.watchdogs/last_run.log` and `~/.watchdogs/launcher.log`.
 - **Feature ideas** → open an issue with the `enhancement` label first,
   let's talk before you write code.
-- **Pull requests** → welcome, please target `master`. Small focused PRs
+- **Pull requests** → welcome, please target `main`. Small focused PRs
   merge faster than big ones.
 - **Be nice.** This is meant to be fun.
 
@@ -22,7 +22,7 @@ Before opening an issue, please check:
 1. The bug isn't already in the **WIP list** in [CHANGELOG.md](CHANGELOG.md)
    (Map Download, BLE HID, HID Type, BlueDucky, RACE Attack are intentionally
    disabled).
-2. You're running the latest `master` (`git pull && bash setup.sh`).
+2. You're running the latest `main` (`git pull && bash setup.sh`).
 3. Your hardware is in the supported list (`ESP32-C5` + `Linux` minimum).
 
 **A good bug report contains:**
@@ -44,8 +44,8 @@ them privately if you'd rather.
 ## Setting up a dev environment
 
 ```bash
-git clone https://github.com/LOCOSP/esp32-watch-dogs.git
-cd esp32-watch-dogs
+git clone https://github.com/LOCOSP/WatchDogsGo.git
+cd WatchDogsGo
 bash setup.sh        # creates .venv, installs deps
 sudo ./run.sh        # launches the game (needs sudo for GPIO/serial)
 ```
