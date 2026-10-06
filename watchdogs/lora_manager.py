@@ -99,6 +99,12 @@ def get_meshcore_preset(region: str | None):
         return MESHCORE_PRESETS[region]
     return MESHCORE_PRESETS[DEFAULT_MESHCORE_REGION]
 
+# Adverts flood the public mesh, so the advertised position is snapped to a
+# 0.1 degree grid (about 11 x 9 km at 33N): the area shows on mesh maps, the
+# exact spot never leaves the device. 1 = full precision, 10_000 = 0.01 degree
+# (about 1 km). Added 2026-10-05.
+ADVERT_LOCATION_GRID_UDEG = 100_000
+
 # MeshCore protocol constants
 MESHCORE_PUBLIC_PSK = bytes.fromhex("8b3387e9c5cdea6ac9e5edbaa115cd72")
 MESHCORE_PUBLIC_HASH = 0x11
@@ -1196,9 +1202,10 @@ class LoRaManager:
             flags |= 0x10  # has GPS (bit 4)
         appdata = bytes([flags])
         if has_gps:
+            g = ADVERT_LOCATION_GRID_UDEG
             appdata += struct.pack("<ii",
-                                   int(lat * 1_000_000),
-                                   int(lon * 1_000_000))
+                                   round(lat * 1_000_000 / g) * g,
+                                   round(lon * 1_000_000 / g) * g)
         appdata += node_name.encode("utf-8") + b"\x00"
 
         # Sign: pubkey(32) + timestamp(4) + appdata (MeshCore spec)
