@@ -81,6 +81,9 @@ MESHCORE_PRESETS: dict[str, tuple[int, int, int, int, str]] = {
                        "US/Canada Narrow (910.525 SF7 BW62.5)"),
     "us_ca_default":  (910_525_000, 11, 5, 250_000,
                        "US/Canada Default (910.525 SF11 BW250)"),
+    # SoCal mesh community preset, matching the T-Deck (wadamesh). Added 2026-10-05.
+    "us_927_narrow":  (927_875_000, 7,  5, 62_500,
+                       "SoCal Mesh (927.875 SF7 BW62.5)"),
     "anz_narrow":     (915_525_000, 7,  5, 62_500,
                        "AU/NZ Narrow (915.525 SF7 BW62.5)"),
     "in_narrow":      (865_525_000, 7,  5, 62_500,
