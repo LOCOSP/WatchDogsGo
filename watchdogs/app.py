@@ -35,6 +35,7 @@ from .race_attack import RACEAttack
 from .aio_manager import AioManager
 from .whitelist_manager import WhitelistManager
 from .lora_manager import LoRaManager
+from .wdg_chat import WdgChat
 from .sdr_manager import SDRManager
 from .plugin_loader import discover_plugins
 from .watch_manager import WatchManager
@@ -73,6 +74,7 @@ C_DIM = 13
 C_WARNING = 10
 C_ERROR = 8
 C_SUCCESS = 11
+C_WDG = 14  # WDGWars #general (Reticulum); __init__ swaps in the website purple
 C_DEVICE_SCREEN = 3
 C_MENU_BG = 0
 C_MENU_BORDER = 5
@@ -345,6 +347,12 @@ class WatchDogsGame:
     def __init__(self, serial_port=None, loot_path=None):
         pyxel.init(W, H, title="ESP32 Watch Dogs", fps=FPS,
                    quit_key=pyxel.KEY_NONE, display_scale=2)
+        # WDGWars #general (Reticulum) colour: wdgwars.pl's own accent purple,
+        # #B14BFF, so the Messenger matches the website. The stock 16 colours
+        # only have a dark purple that is unreadable on black, so it is added.
+        global C_WDG
+        pyxel.colors.append(0xB14BFF)
+        C_WDG = len(pyxel.colors) - 1
         try:
             pyxel.fullscreen(True)
         except Exception:
@@ -524,6 +532,9 @@ class WatchDogsGame:
         self._lora._on_node = self._on_mc_node
         self._lora._on_message = self._on_mc_message
         self._lora._on_dm = self._on_mc_dm
+        # WDGWars #general over Reticulum (wdg_lxmf_chat.py), started on first Ctrl+R
+        self._wdg = WdgChat(lambda evt: self._mc_event_queue.put(("wdg", evt)))
+        self._wdg_mode = False
         self._lora._on_dm_ack = self._on_mc_dm_ack
         self._sdr = SDRManager()
         self._sdr_aircraft_xp: set = set()  # ICAO set for XP dedup
@@ -1249,6 +1260,12 @@ class WatchDogsGame:
 
     def _check_fw_update(self) -> None:
         """Background: check GitHub for newer firmware release."""
+        # The AC1200 bridge (wdg_wifi_bridge.py) emulates an ESP32 on a PTY and
+        # reports a fixed firmware string, so there is no firmware to update and
+        # the banner could never clear. Only real ESP32 boards are checked.
+        port = str(self._boot_serial_port or "")
+        if port.startswith("/tmp/esp32-pty") or os.path.realpath(port).startswith("/dev/pts/"):
+            return
         from .config import FIRMWARE_RELEASE_URL
         import json
         from urllib.request import Request, urlopen
@@ -1957,7 +1974,14 @@ class WatchDogsGame:
             aio_lora = self._lora_enabled and self._lora.running
             watch_lora = self._watch.connected
             if not aio_lora and not watch_lora:
-                self.msg("[MC] Enable LoRa or connect PipBoy Watch", C_WARNING)
+                # No radio, but WDGWars #general runs over the internet (Reticulum
+                # TCP), so open the Messenger straight into it instead of refusing.
+                self.msg("[MC] LoRa off: opening WDGWars #general", C_WDG)
+                self._mc_screen = True
+                self._mc_scroll = 0
+                self.menu_open = False
+                if not self._wdg_mode:
+                    self._toggle_wdg_mode()
                 return
             if watch_lora and not aio_lora:
                 # Start watch LoRa if not AIO
@@ -1972,7 +1996,7 @@ class WatchDogsGame:
                     (f"\x11 Your node: {self._mc_node_name}", C_HACK_CYAN))
                 self._mc_log.append(
                     ("\x11 Shortcuts: Ctrl+N=name  Ctrl+A=advert  "
-                     "Ctrl+C=channel  Ctrl+X=clear", 13))
+                     "Ctrl+C=channel  Ctrl+X=clear  Ctrl+R=Reticulum", 13))
                 self._mc_help_shown = True
             return
 
@@ -3571,10 +3595,10 @@ class WatchDogsGame:
     # ------------------------------------------------------------------
 
     def _poll_lora(self):
-        if not self._lora.running:
-            return
+        # Only the telemetry drain needs the radio: the event queue below also
+        # carries WDGWars #general events, which arrive with LoRa off.
         try:
-            while not self._lora.queue.empty():
+            while self._lora.running and not self._lora.queue.empty():
                 text, attr = self._lora.queue.get_nowait()
                 # Telemetry goes to terminal only, not chat
                 self._term_add(f"[LoRa] {text}", raw=True)
@@ -3594,6 +3618,8 @@ class WatchDogsGame:
                     # Play notification sound
                     self._play_mc_notify()
                     self._earn_badge("meshcore")
+                elif evt[0] == "wdg":
+                    self._handle_wdg_event(evt[1])
                 elif evt[0] == "dm":
                     _, from_id, message, rssi, hops = evt
                     ts = time.strftime("%H:%M")
@@ -3703,6 +3729,38 @@ class WatchDogsGame:
                 self.loot.save_meshcore_message(channel, message, rssi)
             except Exception:
                 pass
+
+    def _handle_wdg_event(self, evt):
+        """WDGWars #general helper output (main thread, via _mc_event_queue)."""
+        ts = time.strftime("%H:%M")
+        kind = evt.get("t")
+        if kind == "msg":
+            text = evt.get("text", "")
+            src = evt.get("src", "")
+            line = text if src == "#general" else f"{src}: {text}"
+            self._mc_log.append((f"\x10 [WDG] {line}", C_WDG, ts))
+            self.msg(f"[WDG] {line[:30]}", C_WDG)
+            self._play_mc_notify()
+        elif kind == "sent":
+            if not evt.get("ok"):
+                self._mc_log.append(
+                    (f"\x10 [WDG] not delivered: {evt.get('why', '?')}", C_WARNING, ts))
+        elif kind == "status":
+            self._mc_log.append((f"\x11 [WDG] {evt.get('text', '')}", C_DIM, ts))
+            if evt.get("stopped"):
+                self._wdg_mode = False
+
+    def _toggle_wdg_mode(self):
+        """Ctrl+R: type into WDGWars #general (Reticulum) instead of the mesh."""
+        self._wdg_mode = not self._wdg_mode
+        if self._wdg_mode:
+            self._mc_dm_target = None
+            self._mc_log.append(
+                ("\x10 WDGWars #general: Enter posts to wdgwars.pl, not the mesh "
+                 "(Ctrl+R or ESC to leave)", C_WDG))
+            self._wdg.start()
+        else:
+            self._mc_log.append(("\x10 WDGWars mode off, back to the mesh", C_HACK_CYAN))
 
     def _on_mc_dm(self, from_id, message, rssi, hops=0):
         """Callback: incoming DM addressed to us (dedup by content)."""
@@ -3895,6 +3953,7 @@ class WatchDogsGame:
         self.gps.close()
         if self._lora.running:
             self._lora.stop()
+        self._wdg.stop()
         if self._sdr.running:
             self._sdr.stop()
         if self._watch.connected:
@@ -6877,6 +6936,9 @@ class WatchDogsGame:
 
         # ESC — exit DM mode or hide chat
         if pyxel.btnp(pyxel.KEY_ESCAPE):
+            if self._wdg_mode:
+                self._toggle_wdg_mode()
+                return
             if self._mc_dm_target:
                 self._mc_dm_target = None
                 self._mc_log.append(
@@ -6915,7 +6977,15 @@ class WatchDogsGame:
             text = self._mc_input.strip()
             if text:
                 ts = time.strftime("%H:%M")
-                if self._mc_dm_target:
+                if self._wdg_mode:
+                    # WDGWars #general over Reticulum, never the mesh
+                    if self._wdg.send(text):
+                        self._mc_log.append((f"\x11 [WDG] {text}", C_WDG, ts))
+                    else:
+                        self._mc_log.append(
+                            ("\x10 [WDG] link not running (Ctrl+R twice to restart)",
+                             C_WARNING, ts))
+                elif self._mc_dm_target:
                     # Encrypted DM
                     pk_hex = self._mc_dm_target.get("pubkey", "")
                     if pk_hex:
@@ -6964,6 +7034,9 @@ class WatchDogsGame:
         # Shortcut keys (Ctrl+key — always available, don't block typing)
         ctrl = pyxel.btn(pyxel.KEY_LCTRL) or pyxel.btn(pyxel.KEY_RCTRL)
         if ctrl:
+            if pyxel.btnp(pyxel.KEY_R):
+                self._toggle_wdg_mode()
+                return
             if pyxel.btnp(pyxel.KEY_A):
                 lat = self.player_lat if self.gps_fix else 0.0
                 lon = self.player_lon if self.gps_fix else 0.0
@@ -7127,7 +7200,10 @@ class WatchDogsGame:
         ch_name = "?"
         if self._mc_channels_list and self._mc_active_ch < len(self._mc_channels_list):
             ch_name = self._mc_channels_list[self._mc_active_ch].name
-        if self._mc_dm_target:
+        if self._wdg_mode:
+            pyxel.text(4, 4, f"WDGWARS [#general] via Reticulum "
+                       f"[{self._wdg.status[:48]}]", C_WDG)
+        elif self._mc_dm_target:
             dm_name = self._mc_dm_target.get("name", "?")
             pyxel.text(4, 4, f"MESHCORE [DM: {dm_name}] [{status}] "
                        f"pkts:{pkts} node:{self._mc_node_name}", 12)
@@ -7194,9 +7270,12 @@ class WatchDogsGame:
 
         # Input bar
         cursor = "_" if pyxel.frame_count % 30 < 20 else ""
-        prefix = "DM> " if self._mc_dm_target else "> "
-        bar_bg = 12 if self._mc_dm_target else 1
-        bar_fg = 0 if self._mc_dm_target else C_TEXT
+        if self._wdg_mode:
+            prefix, bar_bg, bar_fg = "RNS> ", C_WDG, 0
+        else:
+            prefix = "DM> " if self._mc_dm_target else "> "
+            bar_bg = 12 if self._mc_dm_target else 1
+            bar_fg = 0 if self._mc_dm_target else C_TEXT
         pyxel.rect(0, chat_bot, W, 14, bar_bg)
         visible_w = (W - 8) // char_w - len(prefix)
         inp = self._mc_input
@@ -7339,9 +7418,13 @@ class WatchDogsGame:
 
         # Bottom hints
         pyxel.rect(0, H - 10, W, 10, 0)
-        pyxel.text(4, H - 8,
-                   "C-A Advert  C-N Name  C-H Nodes  C-C Chan  [/]Switch  C-X Clear  ESC Back",
-                   C_DIM)
+        hints = ("C-A Advert  C-N Name  C-H Nodes  C-C Chan  [/]Switch  C-X Clear  "
+                 "C-R Reticulum  ESC Back")
+        pyxel.text(4, H - 8, hints, C_DIM)
+        if self._wdg_mode:  # Reticulum on: its toggle in WDG pink
+            rx = 4 + hints.index("C-R Reticulum") * char_w
+            pyxel.rect(rx, H - 10, len("C-R Reticulum") * char_w, 10, 0)
+            pyxel.text(rx, H - 8, "C-R Reticulum", C_WDG)
 
     # ------------------------------------------------------------------
     # Loot screen search

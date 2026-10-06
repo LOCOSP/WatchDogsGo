@@ -81,6 +81,9 @@ MESHCORE_PRESETS: dict[str, tuple[int, int, int, int, str]] = {
                        "US/Canada Narrow (910.525 SF7 BW62.5)"),
     "us_ca_default":  (910_525_000, 11, 5, 250_000,
                        "US/Canada Default (910.525 SF11 BW250)"),
+    # SoCal mesh community preset, matching the T-Deck (wadamesh). Added 2026-10-05.
+    "us_927_narrow":  (927_875_000, 7,  5, 62_500,
+                       "SoCal Mesh (927.875 SF7 BW62.5)"),
     "anz_narrow":     (915_525_000, 7,  5, 62_500,
                        "AU/NZ Narrow (915.525 SF7 BW62.5)"),
     "in_narrow":      (865_525_000, 7,  5, 62_500,
@@ -95,6 +98,12 @@ def get_meshcore_preset(region: str | None):
     if region and region in MESHCORE_PRESETS:
         return MESHCORE_PRESETS[region]
     return MESHCORE_PRESETS[DEFAULT_MESHCORE_REGION]
+
+# Adverts flood the public mesh, so the advertised position is snapped to a
+# 0.1 degree grid (about 11 x 9 km at 33N): the area shows on mesh maps, the
+# exact spot never leaves the device. 1 = full precision, 10_000 = 0.01 degree
+# (about 1 km). Added 2026-10-05.
+ADVERT_LOCATION_GRID_UDEG = 100_000
 
 # MeshCore protocol constants
 MESHCORE_PUBLIC_PSK = bytes.fromhex("8b3387e9c5cdea6ac9e5edbaa115cd72")
@@ -1193,9 +1202,10 @@ class LoRaManager:
             flags |= 0x10  # has GPS (bit 4)
         appdata = bytes([flags])
         if has_gps:
+            g = ADVERT_LOCATION_GRID_UDEG
             appdata += struct.pack("<ii",
-                                   int(lat * 1_000_000),
-                                   int(lon * 1_000_000))
+                                   round(lat * 1_000_000 / g) * g,
+                                   round(lon * 1_000_000 / g) * g)
         appdata += node_name.encode("utf-8") + b"\x00"
 
         # Sign: pubkey(32) + timestamp(4) + appdata (MeshCore spec)
