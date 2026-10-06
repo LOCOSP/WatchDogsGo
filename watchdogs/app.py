@@ -1260,6 +1260,12 @@ class WatchDogsGame:
 
     def _check_fw_update(self) -> None:
         """Background: check GitHub for newer firmware release."""
+        # The AC1200 bridge (wdg_wifi_bridge.py) emulates an ESP32 on a PTY and
+        # reports a fixed firmware string, so there is no firmware to update and
+        # the banner could never clear. Only real ESP32 boards are checked.
+        port = str(self._boot_serial_port or "")
+        if port.startswith("/tmp/esp32-pty") or os.path.realpath(port).startswith("/dev/pts/"):
+            return
         from .config import FIRMWARE_RELEASE_URL
         import json
         from urllib.request import Request, urlopen
