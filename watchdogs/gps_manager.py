@@ -145,6 +145,11 @@ class GpsManager:
             + glob.glob("/dev/ttyACM*")
             + glob.glob("/dev/ttyAMA*")
         )
+        # Some Raspberry Pi / CM4 boards expose the GPS UART (e.g. the AIO
+        # board's built-in GPS) as the mini UART /dev/ttyS0. Probe only that
+        # one port, not ttyS*, so PCs with many ttyS ports don't wait 2 s each.
+        if os.path.exists("/dev/ttyS0"):
+            candidates.append("/dev/ttyS0")
         for path in candidates:
             if path in skip:
                 continue
