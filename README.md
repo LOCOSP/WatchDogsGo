@@ -172,6 +172,59 @@ A pyxel-based game where you walk around a real-world map while your ESP32 scans
 - Auto-reconnect ESP32 after USB replug
 - Firmware version check + OTA update notification + ESP32 flasher
 
+## WDGWars Portal Integration (for forks)
+
+The game talks to the **WDGWars** community server (`wdgwars.pl`) through the
+`plugins/wardrive_upload.py` plugin. It's a headless API client — **no secret is
+baked into the code**: every request is signed with HMAC-SHA256 using *your own*
+API key, so the public source is safe to fork and run.
+
+What the integration gives you:
+
+| Capability | Endpoint | What it does |
+|---|---|---|
+| Wardrive upload | `POST /api/upload/` | WiFi/BLE + ADS-B + MeshCore from loot sessions, HMAC-signed |
+| Badges | `POST /api/badges/` | push game badges up, pull server-awarded badges back |
+| Profile | `GET /api/me` | username, gang, stats, badges (also auto-syncs your LoRa node name) |
+| Web login (2FA) | `GET /api/auth/pending/` | the game shows a login PIN for the website |
+| White Rabbit targets | `GET /api/rabbits` | map objectives to chase |
+| Live game-state | `GET /api/game-state` | uConsole ranking, team, decaying territory, contracts |
+| Device pairing | `POST /api/device-pair` | link a device to your account with a short code |
+
+### What you (a fork author / player) must do
+
+1. **Get an API key.** Register at <https://wdgwars.pl> → you get a 64-char hex key.
+   (Or pair the device with a short code — see below — once a UI exposes it.)
+2. **Put it in `secrets.conf`** (gitignored, never committed):
+   ```bash
+   cp secrets.conf.example secrets.conf
+   # then add:
+   WARDRIVE_API_KEY=your-64-char-hex-key
+   ```
+   In-game you can also paste it via **PLUGINS → Watch Dogs Go Wars Sync → Set API Key**.
+3. **That's it** — Wars Sync unlocks at level 6 (WARDRIVER). The server URL is built
+   into the plugin; you only override it if you run your own server:
+   ```
+   WARDRIVE_API_URL=https://your-own-server.example/api/upload/
+   ```
+
+### Keep the User-Agent product token
+
+Requests go out as `WatchDogsGo/<version> (uConsole-<hwid>; Python/<x.y>)`. The portal
+routes and ranks uConsole traffic by matching the **`WatchDogsGo/`** product token (and
+filters out bench/dev runs that report `Darwin`). If your fork **renames** the product
+token in `wardrive_upload.py`, the portal won't recognise it until the admin whitelists
+your name — so keep `WatchDogsGo` unless you've arranged otherwise. The `<hwid>` is a
+6-char hash of the board serial (stable per device, not personal) so each uConsole is
+distinguishable; it reveals nothing about you.
+
+### Running your own server
+
+The API is a thin, documented contract (the table above). Point `WARDRIVE_API_URL` at
+your implementation; it must verify the HMAC envelope
+(`{data: base64(json), nonce, sig=HMAC_SHA256(key, nonce+data_b64)}`) and honour
+`X-API-Key`. Nothing else in the game needs changing.
+
 ## Install
 
 ```bash

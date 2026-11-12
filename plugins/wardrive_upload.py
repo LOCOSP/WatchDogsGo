@@ -39,8 +39,45 @@ except Exception:
 # structured format is purely for their telemetry.
 import platform as _plat
 import sys as _sys
-_PLATFORM = "uConsole" if _plat.system() == "Linux" else _plat.system()
+
+
+def _hw_id() -> str:
+    """6-char fingerprint of THIS physical device, stable across reinstalls —
+    derived from the board/CPU serial + machine-id so every uConsole is unique
+    (not random). Falls back to the primary MAC, then 'unknown'. Lets the portal
+    tell individual uConsoles apart via the User-Agent platform hint."""
+    seed = ""
+    try:
+        with open("/proc/cpuinfo", "r", errors="replace") as f:
+            for ln in f:
+                if ln.lower().startswith("serial"):
+                    seed += ln.split(":")[-1].strip()
+                    break
+    except Exception:
+        pass
+    for src in ("/sys/firmware/devicetree/base/serial-number", "/etc/machine-id"):
+        try:
+            with open(src, "rb") as f:
+                seed += f.read().decode("utf-8", "replace").strip("\x00 \n")
+        except Exception:
+            pass
+    if not seed:
+        try:
+            import uuid
+            seed = "%012x" % uuid.getnode()           # MAC fallback
+        except Exception:
+            seed = "unknown"
+    alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"         # 32 chars, no 0/O/1/I
+    digest = hashlib.sha256(seed.encode("utf-8")).digest()
+    return "".join(alpha[b % 32] for b in digest[:6])
+
+
 _PYVER = f"{_sys.version_info.major}.{_sys.version_info.minor}"
+# Per-device platform hint: 'uConsole-W4GF32' on a real board so the portal can
+# tell uConsoles apart; a bench/dev run on a Mac reports 'Darwin', which the
+# server filters out of the ranking.
+_PLATFORM = (f"uConsole-{_hw_id()}" if _plat.system() == "Linux"
+             else _plat.system())
 USER_AGENT = (f"WatchDogsGo/{_GAME_VERSION} "
               f"({_PLATFORM}; Python/{_PYVER})")
 
@@ -767,6 +804,16 @@ class WardriveUpload(PluginBase):
 
     def _sign_payload(self, data: dict) -> bytes:
         """Sign payload with HMAC-SHA256. Server verifies before processing."""
+        # Declared-by-game XP rides along on real uploads so the portal can show
+        # it on the profile (never ranked server-side). Skipped for the empty
+        # test ping. Build a copy — never mutate the caller's dict.
+        if data.get("networks") or data.get("aircraft") or data.get("meshcore_nodes"):
+            try:
+                xp = int(getattr(self.app, "xp", 0) or 0)
+                if xp > 0:
+                    data = {**data, "game_xp": xp}
+            except Exception:
+                pass
         raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
         nonce = secrets.token_hex(8)
         data_b64 = base64.b64encode(raw).decode("ascii")
@@ -970,6 +1017,90 @@ class WardriveUpload(PluginBase):
                 # User picked a custom name — don't override silently
                 self._log_add(
                     f"  LoRa node kept as '{current}' (custom)", 13)
+
+    # ------------------------------------------------------------------
+    # Portal data — White Rabbit targets, device pairing, live game-state.
+    # Headless accessors (no UI of their own) so a fork can wire them into
+    # the map/HUD; all reuse the same HMAC/UA/X-API-Key plumbing as uploads.
+    # ------------------------------------------------------------------
+    def _api_base(self) -> str:
+        """Scheme+host of the server, derived from the upload URL."""
+        return self._api_url.rsplit("/api/", 1)[0] if self._api_url else ""
+
+    def fetch_rabbits(self) -> list:
+        """GET /api/rabbits — 'Chase the White Rabbit' target tiles. [] on error.
+        Read-only; the caller recomputes distance/bearing from the device GPS."""
+        if not self._api_key or not self._api_url:
+            return []
+        try:
+            req = Request(f"{self._api_base()}/api/rabbits")
+            req.add_header("X-API-Key", self._api_key)
+            with _open(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            if not data.get("ok"):
+                return []
+            return data.get("rabbits", []) or []
+        except Exception as e:
+            log.debug("fetch_rabbits failed: %s", e)
+            return []
+
+    def fetch_game_state(self, lat=None, lon=None) -> dict | None:
+        """GET /api/game-state[?lat=&lng=] -> dict or None. Rank, team, decaying
+        territory tiles and active contracts for a HUD. Position is sent only in
+        the query string; the server never stores it."""
+        if not self._api_key or not self._api_url:
+            return None
+        try:
+            url = f"{self._api_base()}/api/game-state"
+            if lat is not None and lon is not None:
+                url += "?lat=%.6f&lng=%.6f" % (lat, lon)
+            req = Request(url)
+            req.add_header("X-API-Key", self._api_key)
+            with _open(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            return data if data.get("ok") else None
+        except Exception as e:
+            log.debug("fetch_game_state failed: %s", e)
+            return None
+
+    def request_pair(self, label: str = "WatchDogsGo (uConsole)") -> dict | None:
+        """POST /api/device-pair action=request -> {code, poll, expires_in} or
+        None. Lets a user link this device to their account with a short code
+        instead of typing a 64-char key on the uConsole keyboard."""
+        try:
+            body = json.dumps({"action": "request", "label": label}).encode()
+            req = Request(f"{self._api_base()}/api/device-pair",
+                          data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            with _open(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            return data if data.get("ok") else None
+        except Exception as e:
+            log.debug("request_pair failed: %s", e)
+            return None
+
+    def poll_pair(self, code: str, poll_secret: str) -> dict:
+        """POST action=poll -> {'pending':True} | {'api_key','username'} |
+        {'ok':False,'error':...}. Call until it returns a key, then adopt it."""
+        try:
+            body = json.dumps(
+                {"action": "poll", "code": code, "poll": poll_secret}).encode()
+            req = Request(f"{self._api_base()}/api/device-pair",
+                          data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            with _open(req, timeout=15) as resp:
+                return json.loads(resp.read().decode())
+        except HTTPError as e:
+            return {"ok": False,
+                    "error": "bad_request" if e.code == 403 else f"http_{e.code}"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def adopt_api_key(self, api_key: str) -> None:
+        """Persist a freshly paired key to secrets.conf and use it immediately."""
+        self._api_key = api_key
+        self._save_secret("WARDRIVE_API_KEY", api_key)
+        self._start_auth_poll()
 
     # ------------------------------------------------------------------
     # API test
