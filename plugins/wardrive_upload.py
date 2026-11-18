@@ -79,6 +79,18 @@ _PYVER = f"{_sys.version_info.major}.{_sys.version_info.minor}"
 def _platform_kind() -> str:
     if _plat.system() != "Linux":
         return _plat.system()
+    # ClockworkPi uConsole is a Raspberry Pi Compute Module whose device-tree model
+    # only says "Raspberry Pi ..."; its boot config loads the uConsole overlay, so
+    # look for an active clockworkpi-uconsole line before falling back to the model.
+    for _cfg in ("/boot/firmware/config.txt", "/boot/config.txt"):
+        try:
+            with open(_cfg, "r", errors="ignore") as _cf:
+                for _ln in _cf:
+                    _s = _ln.strip()
+                    if _s and not _s.startswith("#") and "clockworkpi-uconsole" in _s:
+                        return "uConsole"
+        except Exception:
+            pass
     model = ""
     for _p in ("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"):
         try:
