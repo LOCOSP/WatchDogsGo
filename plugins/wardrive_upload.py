@@ -73,11 +73,32 @@ def _hw_id() -> str:
 
 
 _PYVER = f"{_sys.version_info.major}.{_sys.version_info.minor}"
-# Per-device platform hint: 'uConsole-W4GF32' on a real board so the portal can
-# tell uConsoles apart; a bench/dev run on a Mac reports 'Darwin', which the
-# server filters out of the ranking.
-_PLATFORM = (f"uConsole-{_hw_id()}" if _plat.system() == "Linux"
-             else _plat.system())
+# Per-device platform hint: '<kind>-<hwid>' so the portal can tell a uConsole from a
+# Raspberry Pi or a plain Linux box (they were all reporting 'uConsole'); a bench/dev
+# run on a Mac reports 'Darwin', which the server filters out of the ranking.
+def _platform_kind() -> str:
+    if _plat.system() != "Linux":
+        return _plat.system()
+    model = ""
+    for _p in ("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"):
+        try:
+            with open(_p, "rb") as _f:
+                model = _f.read().decode("utf-8", "ignore").replace("\x00", "").strip().lower()
+            if model:
+                break
+        except Exception:
+            pass
+    if "uconsole" in model or "clockwork" in model:
+        return "uConsole"
+    if "raspberry pi" in model:
+        return "RPi"
+    return "Linux"
+
+
+# The portal ranks uConsole, Raspberry Pi and other Linux players; keep the hardware
+# kind honest so each is ranked fairly (a Mac dev run stays 'Darwin', filtered out).
+_kind = _platform_kind()
+_PLATFORM = (f"{_kind}-{_hw_id()}" if _plat.system() == "Linux" else _kind)
 USER_AGENT = (f"WatchDogsGo/{_GAME_VERSION} "
               f"({_PLATFORM}; Python/{_PYVER})")
 

@@ -210,13 +210,38 @@ What the integration gives you:
 
 ### Keep the User-Agent product token
 
-Requests go out as `WatchDogsGo/<version> (uConsole-<hwid>; Python/<x.y>)`. The portal
-routes and ranks uConsole traffic by matching the **`WatchDogsGo/`** product token (and
-filters out bench/dev runs that report `Darwin`). If your fork **renames** the product
-token in `wardrive_upload.py`, the portal won't recognise it until the admin whitelists
-your name — so keep `WatchDogsGo` unless you've arranged otherwise. The `<hwid>` is a
-6-char hash of the board serial (stable per device, not personal) so each uConsole is
-distinguishable; it reveals nothing about you.
+Requests go out as `WatchDogsGo/<version> (<platform>-<hwid>; Python/<x.y>)`, where
+`<platform>` is `uConsole` on a ClockworkPi uConsole, `RPi` on another Raspberry Pi, or
+`Linux` on any other Linux box (a bench/dev run on a Mac reports `Darwin`, which the
+server filters out of the ranking). The portal routes and ranks traffic by matching the
+**`WatchDogsGo/`** product token. If your fork **renames** the product token in
+`wardrive_upload.py`, the portal won't recognise it until the admin whitelists your name
+— so keep `WatchDogsGo` unless you've arranged otherwise. The `<hwid>` is a 6-char hash
+of the board serial (stable per device, not personal); it reveals nothing about you.
+
+### Rules for forks and tools that use the portal
+
+The portal (`wdgwars.pl`) runs a community ranking. If you fork the game or build a tool
+that talks to it, keep it fair and keep yourself identifiable:
+
+1. **Introduce yourself.** Keep the User-Agent start `WatchDogsGo/<version> (<platform>-<hwid>;
+   Python/<x.y>)` and append your own tag after the bracket:
+   `WatchDogsGo/0.10.0 (uConsole-ABC234; Python/3.13) Fork/MyFork-2.0`. You still count in the
+   ranking, and a bug report is traceable to your code.
+2. **Don't impersonate hardware.** Report `uConsole-…` only on a real uConsole; on other
+   hardware tell the truth (`RPi-…`, `Linux-…`). The stock client already does this.
+3. **A separate tool isn't WatchDogsGo.** Bridges, converters and scripts that send data use
+   their *own* product name at the start of the User-Agent (`MyTool/1.0 …`), not `WatchDogsGo/`.
+4. **Respect the limits.** `/api/rabbits` ~ every 60 s, `/api/game-state` every 30–60 s, upload
+   after a session or in batches. On HTTP `429`, wait as long as `Retry-After` says.
+5. **The player's key stays with the player.** Prefer code pairing (`/api/device-pair`) over
+   pasting a 64-char key, and never send the key anywhere except `wdgwars.pl`.
+6. **Only what the server accepts counts.** Counters the game declares (your own XP, etc.) are
+   not ranked, and the same sessions must not be uploaded more than once.
+7. **No WiFi-cracking material.** The portal does not accept PMKID or handshakes — don't add
+   uploading of that data.
+8. **Read data by header, not by column number.** Parse WiGLE files by their header names (1.6
+   adds a column), and an SSID that contains a comma must be quoted.
 
 ### Running your own server
 
