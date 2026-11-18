@@ -540,6 +540,9 @@ class WatchDogsGame:
             self._watch.connect(_watch_addr)
         # Plugins
         self._plugins = discover_plugins()
+        # WDGWars sync plugin, if installed (exposes fetch_rabbits/game-state).
+        self._wars = next((p for p in self._plugins
+                           if hasattr(p, "fetch_rabbits")), None)
         self._plugin_overlay = None  # active plugin overlay
         for p in self._plugins:
             p.on_load(self)
@@ -664,6 +667,16 @@ class WatchDogsGame:
         self.ble_devices: list[BleDevice] = []
         self.wifi_networks: list[WifiNetwork] = []
         self.markers: list[MapMarker] = []
+        # WDGWars portal live data: White Rabbit targets + game-state HUD.
+        self._rabbits: list[dict] = []   # nearest-first, enriched dist/compass
+        self._rabbits_ts = 0.0
+        self._rabbits_busy = False
+        self._rabbits_noted = False
+        self._gs: dict = {}              # /api/game-state payload for the HUD
+        self._gs_decay: list = []
+        self._gs_ts = 0.0
+        self._gs_busy = False
+        self._gs_noted = False
         self.particles: list[Particle] = []
         self.msgs: list[tuple[str, int, int]] = []
         self.scan_pulse = 0
@@ -1389,6 +1402,9 @@ class WatchDogsGame:
             self._save_xp_if_dirty()
             self._battery_pct = self._read_battery()
             self._loot_points_ts = time.time()
+
+        # WDGWars portal: pull White Rabbit targets + game-state in the background.
+        self._poll_portal()
 
         # Keys
         # Loot screen toggle (backtick / grave accent)
@@ -3987,11 +4003,13 @@ class WatchDogsGame:
         self._draw_aircraft()
         self._draw_sensors()
         self._draw_markers()
+        self._draw_rabbits()
         self._draw_particles()
         self._draw_hack_bar()
         self._draw_glitch()
         self._draw_terminal()
         self._draw_hud_top()
+        self._draw_portal_hud()
         self._draw_hud_bottom()
         self._draw_messages()
         self._draw_radar()
@@ -4380,6 +4398,155 @@ class WatchDogsGame:
             bar_h = max(4, ph * 8 // n)
             bar_y = py + 30 + (ph - 46) * self._popup_scroll // max(1, n - 8)
             pyxel.rect(px + pw - 3, bar_y, 2, bar_h, C_DIM)
+
+    # ------------------------------------------------------------------
+    # WDGWars portal: White Rabbit targets (/api/rabbits) + game-state HUD
+    # ------------------------------------------------------------------
+    _COMPASS8 = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+
+    @staticmethod
+    def _hav_km(lat1, lon1, lat2, lon2):
+        """Great-circle distance in km."""
+        p1, p2 = math.radians(lat1), math.radians(lat2)
+        dp = math.radians(lat2 - lat1)
+        dl = math.radians(lon2 - lon1)
+        a = (math.sin(dp / 2) ** 2
+             + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2)
+        return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
+
+    @staticmethod
+    def _bearing_deg(lat1, lon1, lat2, lon2):
+        """Initial compass bearing (degrees, 0=N) from point 1 to point 2."""
+        p1, p2 = math.radians(lat1), math.radians(lat2)
+        dl = math.radians(lon2 - lon1)
+        y = math.sin(dl) * math.cos(p2)
+        x = (math.cos(p1) * math.sin(p2)
+             - math.sin(p1) * math.cos(p2) * math.cos(dl))
+        return (math.degrees(math.atan2(y, x)) + 360) % 360
+
+    def _poll_portal(self):
+        """Refresh portal rabbits (~60s) and game-state (~45s) off the main
+        loop. No-op until the WDGWars plugin is present and has an API key."""
+        wars = self._wars
+        if wars is None or not getattr(wars, "_api_key", ""):
+            return
+        now = time.time()
+        if not self._rabbits_busy and now - self._rabbits_ts > 60:
+            self._rabbits_ts = now
+            self._rabbits_busy = True
+            threading.Thread(target=self._rabbits_worker,
+                             args=(wars,), daemon=True).start()
+        if not self._gs_busy and now - self._gs_ts > 45:
+            self._gs_ts = now
+            self._gs_busy = True
+            threading.Thread(target=self._gs_worker,
+                             args=(wars,), daemon=True).start()
+
+    def _rabbits_worker(self, wars):
+        """Fetch targets, then range + sort them against the device GPS."""
+        try:
+            fix = self.gps_fix
+            plat, plon = self.player_lat, self.player_lon
+            out = []
+            for r in wars.fetch_rabbits():
+                try:
+                    flat = float(r.get("lat"))
+                    flon = float(r.get("lng", r.get("lon")))
+                except (TypeError, ValueError):
+                    continue
+                if (flat == 0.0 and flon == 0.0) or not (
+                        -90 <= flat <= 90 and -180 <= flon <= 180):
+                    continue
+                d = dict(r)
+                d["lat"], d["lon"] = flat, flon
+                if fix and (plat or plon):
+                    d["dist_km"] = self._hav_km(plat, plon, flat, flon)
+                    b = self._bearing_deg(plat, plon, flat, flon)
+                    d["compass"] = self._COMPASS8[int((b + 22.5) % 360 // 45)]
+                else:
+                    d["dist_km"], d["compass"] = None, None
+                out.append(d)
+            out.sort(key=lambda x: (x.get("dist_km") is None,
+                                    x.get("dist_km") or 0.0))
+            self._rabbits = out
+            if out and not self._rabbits_noted:
+                self._rabbits_noted = True
+                near = out[0]
+                dk = near.get("dist_km")
+                if dk is None:
+                    self.msg("[RABBIT] %d portal target(s) - GPS fix to range them"
+                             % len(out), C_WARNING)
+                else:
+                    self.msg("[RABBIT] %d target(s); nearest %.1f km %s"
+                             % (len(out), dk, near.get("compass") or ""),
+                             C_HACK_CYAN)
+        except Exception:
+            pass
+        finally:
+            self._rabbits_busy = False
+
+    def _gs_worker(self, wars):
+        """Fetch portal game-state (rank, team, decaying territory, contracts)."""
+        try:
+            fix = self.gps_fix
+            lat = self.player_lat if fix else None
+            lon = self.player_lon if fix else None
+            res = wars.fetch_game_state(lat, lon)
+            if not res:
+                return
+            self._gs = res
+            decay = res.get("decay_nearby")
+            if decay is not None:   # null = server hasn't computed it -> keep last
+                self._gs_decay = decay
+            if not self._gs_noted:
+                self._gs_noted = True
+                me = res.get("me") or {}
+                rk = res.get("uconsole_rank") or {}
+                pos = rk.get("position")
+                where = ("#%d of %d" % (pos, rk.get("of", 0))
+                         if pos else "unranked")
+                self.msg("[WDGWars] %s lvl %s - uConsole rank %s"
+                         % (me.get("username", "?"), me.get("level", "?"),
+                            where), C_HACK_CYAN)
+        except Exception:
+            pass
+        finally:
+            self._gs_busy = False
+
+    def _draw_rabbits(self):
+        """White Rabbit portal targets on the map; nearest few are labelled."""
+        if self.menu_open or not self._rabbits:
+            return
+        zoom = self.proj.zoom
+        ring = pyxel.frame_count % 40 < 24
+        for i, r in enumerate(self._rabbits):
+            sx, sy = self.proj.geo_to_screen(r["lat"], r["lon"])
+            if not self.proj.screen_visible(sx, sy):
+                continue
+            if ring:
+                pyxel.circb(sx, sy, 5, C_TEXT)
+            pyxel.circb(sx, sy, 2, C_TEXT)
+            pyxel.pset(sx, sy, C_TEXT)
+            if zoom >= 4 and i < 3:
+                dk = r.get("dist_km")
+                lab = ("%.1fkm %s" % (dk, r.get("compass") or "")
+                       if dk is not None else "RABBIT")
+                lx = (sx + 7 if sx + 7 + len(lab) * 4 < W
+                      else sx - 7 - len(lab) * 4)
+                pyxel.text(lx, sy - 2, lab, C_TEXT)
+
+    def _draw_portal_hud(self):
+        """Compact WDGWars rank/team line at the top-left of the map."""
+        if self.menu_open or not self._gs:
+            return
+        rk = self._gs.get("uconsole_rank") or {}
+        pos = rk.get("position")
+        if not pos:
+            return
+        me = self._gs.get("me") or {}
+        team = me.get("team") or me.get("gang") or ""
+        txt = "WDGWars #%d" % pos + (" %s" % team if team else "")
+        pyxel.text(4, HUD_TOP + 3, txt, C_HACK_CYAN)
 
     def _draw_markers(self):
         """Draw handshake and MeshCore node markers. Always visible at any
