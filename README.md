@@ -2,6 +2,9 @@
 
 Open-world hacking RPG with real cybersecurity tooling. A pyxel game frontend for the ESP32-C5 security device, inspired by Watch Dogs aesthetics.
 
+> **For authorized security testing, research and education only.**
+> You are solely responsible for how you use this software. See [Legal & responsible use](#legal--responsible-use).
+
 ![Watch Dogs Go — main screen](docs/screenshots/01_main_screen.png)
 
 > *Lv.13 GHOST · 203k XP · 21 badges · synced with the wdgwars.pl community server*
@@ -724,6 +727,32 @@ diagnostic block (described above).
 
 For the full list of what's working, what's WIP, and what's been fixed,
 see [CHANGELOG.md](CHANGELOG.md).
+
+## Legal & responsible use
+
+Watch Dogs Go drives real radio hardware and includes tooling that can scan,
+capture, disrupt and impersonate wireless networks and devices. It is built for
+security research, education and authorized testing.
+
+**Only use it on equipment you own, or where you have explicit, written permission
+from the owner.** Scanning or attacking networks and devices without authorization
+is illegal in most jurisdictions, as is transmitting on frequencies or at power
+levels you are not licensed for. Knowing and following the law where you operate
+is your job, not the software's.
+
+**No responsibility.** The author (LOCOSP) and contributors accept no liability for
+any use or misuse of this software, or for any damage, data loss, legal consequence
+or other harm that results from it. Everything you do with Watch Dogs Go, you do on
+your own responsibility and at your own risk.
+
+**No warranty.** The software is provided "as is", without warranty of any kind,
+express or implied, including fitness for a particular purpose.
+
+**Don't be a skid.** This is a tool for learning how wireless systems work and for
+testing what you are allowed to test. Pointing it at strangers' networks, public
+infrastructure or anyone who did not agree to it is not hacking; it is just being a
+nuisance with someone else's code, and it gets tools like this banned for everyone.
+Learn the protocols, break your own lab, report what you find responsibly.
 
 ## License
 
