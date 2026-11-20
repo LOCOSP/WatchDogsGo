@@ -1,0 +1,102 @@
+#!/bin/bash
+# WatchDogsGo NG — one-line installer (raylib / Next-Gen)
+#
+#   curl -sL https://locosp.github.io/WatchDogsGo/install-ng | sudo bash
+#
+# Clones the public repo (LOCOSP/WDGoNG) over HTTPS into ~/python/WatchDogsGo-NG,
+# runs setup.sh (all system + Python deps) and adds a desktop launcher.
+# No GitHub account or SSH key needed — the repo is public.
+
+set -e
+
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; RED='\033[0;31m'; YELLOW='\033[0;33m'; NC='\033[0m'
+err()  { echo -e "${RED}[error]${NC} $1" >&2; exit 1; }
+warn() { echo -e "${YELLOW}[warn]${NC} $1" >&2; }
+
+# Pre-flight
+[ "$(uname)" = "Linux" ] || err "Only Linux is supported (uConsole / Raspberry Pi OS / Debian / Ubuntu)."
+command -v git  >/dev/null 2>&1 || err "git is required. Install with: apt-get install git"
+command -v bash >/dev/null 2>&1 || err "bash is required."
+
+# Resolve the real user even under sudo, so the clone and files belong to the
+# player — not root.
+TARGET_USER="${SUDO_USER:-$(whoami)}"
+TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+[ -n "$TARGET_HOME" ] || err "Cannot resolve home directory for user '$TARGET_USER'."
+
+INSTALL_DIR="${INSTALL_DIR:-$TARGET_HOME/python/WatchDogsGo-NG}"
+REPO_HTTPS="https://github.com/LOCOSP/WDGoNG.git"
+
+asuser() { sudo -u "$TARGET_USER" -H "$@"; }
+
+echo -e "${CYAN}"
+echo "  ██╗    ██╗██████╗  ██████╗  ██████╗     ███╗   ██╗ ██████╗ "
+echo "  ██║    ██║██╔══██╗██╔════╝ ██╔═══██╗    ████╗  ██║██╔════╝ "
+echo "  ██║ █╗ ██║██║  ██║██║  ███╗██║   ██║    ██╔██╗ ██║██║  ███╗"
+echo "  ██║███╗██║██║  ██║██║   ██║██║   ██║    ██║╚██╗██║██║   ██║"
+echo "  ╚███╔███╔╝██████╔╝╚██████╔╝╚██████╔╝    ██║ ╚████║╚██████╔╝"
+echo "   ╚══╝╚══╝ ╚═════╝  ╚═════╝  ╚═════╝     ╚═╝  ╚═══╝ ╚═════╝ "
+echo -e "  ${GREEN}WatchDogsGo NG${CYAN} — Next-Gen (raylib) build${NC}"
+echo ""
+echo "  Repo:        $REPO_HTTPS"
+echo "  Install dir: $INSTALL_DIR"
+echo "  Target user: $TARGET_USER"
+echo ""
+
+# Clone or update
+echo -e "${GREEN}[1/3]${NC} Cloning repository..."
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "  Directory exists — pulling latest..."
+    asuser git -C "$INSTALL_DIR" pull --ff-only || warn "git pull failed — continuing with existing copy"
+elif [ -d "$INSTALL_DIR" ]; then
+    err "$INSTALL_DIR exists but is not a git repo. Remove it first or set INSTALL_DIR=..."
+else
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    chown "$TARGET_USER:$TARGET_USER" "$(dirname "$INSTALL_DIR")" 2>/dev/null || true
+    asuser git clone "$REPO_HTTPS" "$INSTALL_DIR" \
+        || err "git clone failed — check your internet connection."
+fi
+
+# Setup (venv + system/python deps). setup.sh handles its own privilege needs.
+echo ""
+echo -e "${GREEN}[2/3]${NC} Running setup (this may take a few minutes)..."
+cd "$INSTALL_DIR"
+if ! bash setup.sh; then
+    err "setup.sh failed — see errors above. Re-run: cd $INSTALL_DIR && sudo bash setup.sh"
+fi
+
+# Desktop launcher — NG launches through wdgong_ui/run_ui.sh (it self-elevates).
+echo ""
+echo -e "${GREEN}[3/3]${NC} Creating desktop launcher..."
+DESKTOP_DIR="$TARGET_HOME/Desktop"
+if [ -d "$DESKTOP_DIR" ]; then
+    DESKTOP_FILE="$DESKTOP_DIR/WDGo-NG.desktop"
+    cat > "$DESKTOP_FILE" << DESKTOP
+[Desktop Entry]
+Name=WatchDogsGo NG
+Comment=Hacking Real Life Game — Next-Gen (raylib) build
+Exec=lxterminal --title="WatchDogsGo NG" -e bash -c "cd $INSTALL_DIR && ./wdgong_ui/run_ui.sh; read -p 'Press Enter to close...'"
+Terminal=false
+Type=Application
+Categories=Game;Security;
+Icon=$INSTALL_DIR/wdgong_ui/assets/boot/logo.png
+DESKTOP
+    chmod +x "$DESKTOP_FILE" 2>/dev/null || true
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_FILE" 2>/dev/null || true
+    echo "  Created: $DESKTOP_FILE"
+else
+    warn "No Desktop folder at $DESKTOP_DIR — skipping launcher"
+fi
+
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║    WatchDogsGo NG install complete!          ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  ${CYAN}To start:${NC}  cd $INSTALL_DIR && ./wdgong_ui/run_ui.sh"
+[ -d "$DESKTOP_DIR" ] && echo -e "  ${CYAN}Desktop:${NC}  Double-click \"WatchDogsGo NG\""
+echo -e "  ${CYAN}Update:${NC}   in-game SYSTEM > Update Game, or: git pull && ./wdgong_ui/run_ui.sh"
+echo -e "  ${CYAN}Extras:${NC}   EXTRAS tab in-game, or the hub at https://locosp.github.io/WDGoNG-HUB/"
+echo ""
+echo -e "  ${YELLOW}Optional:${NC} cp secrets.conf.example secrets.conf && nano secrets.conf"
+echo ""
