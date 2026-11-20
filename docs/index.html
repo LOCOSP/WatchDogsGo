@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Watch Dogs Go — Open-World Hacking RPG</title>
+<title>Watch Dogs Go — Open-World Hacking Real Life Game</title>
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
@@ -327,7 +327,7 @@ body {
 <div class="container">
 
     <h1 class="title" data-text="WATCH DOGS GO">WATCH DOGS GO</h1>
-    <p class="subtitle">OPEN-WORLD HACKING RPG // REAL SIGNALS // REAL XP</p>
+    <p class="subtitle">OPEN-WORLD HACKING REAL LIFE GAME // REAL SIGNALS // REAL XP</p>
 
     <div class="hw-badges">
         <span class="hw-badge">ClockworkPi uConsole</span>
@@ -339,13 +339,29 @@ body {
     </div>
 
     <div class="install-box">
-        <div class="install-label">// install on uconsole (one command)</div>
+        <div class="install-label">// install WatchDogsGo NG — the new generation (one command)</div>
         <div class="install-cmd">
-            <code id="install-code">curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash</code>
+            <code id="install-code">curl -sL https://locosp.github.io/WatchDogsGo/install-ng | sudo bash</code>
             <button class="btn-copy" onclick="copyInstall()">COPY</button>
         </div>
+        <div style="margin-top:0.5rem;font-size:0.8rem;color:#8a8a8a;line-height:1.6">
+            Next-gen raylib build — offline world map, <b>Cluster wardrive</b> (Marauder V8 fleet),
+            unified <b>LoRa mesh</b> (MeshCore + Meshtastic), ADS-B tracks, and the
+            <b>EXTRAS</b> mini-app platform with a signed hub.
+            <br>
+            <a href="https://github.com/LOCOSP/WDGoNG" target="_blank" style="color:#00e5ff;text-decoration:none;border-bottom:1px dotted #00e5ff">source (WDGoNG)</a> &nbsp;·&nbsp;
+            <a href="https://locosp.github.io/WDGoNG-HUB/" target="_blank" style="color:#1fff9c;text-decoration:none;border-bottom:1px dotted #1fff9c">EXTRAS hub</a> &nbsp;·&nbsp;
+            <a href="install-ng" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view script</a>
+        </div>
+    </div>
+
+    <div class="install-box" style="opacity:0.85">
+        <div class="install-label">// classic build (OG, pyxel) — one command</div>
+        <div class="install-cmd">
+            <code>curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash</code>
+        </div>
         <div style="margin-top:0.5rem;font-size:0.75rem;color:#606060">
-            <a href="install" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view install script source</a>
+            The original pyxel build. <a href="install" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view install script source</a>
             &nbsp;— always review scripts before piping to sudo
         </div>
     </div>
@@ -378,7 +394,7 @@ body {
         </div>
         <div class="feature">
             <div class="feature-icon">🎮</div>
-            <h3>RPG Progression</h3>
+            <h3>RLG Progression</h3>
             <p>20 levels from NOOB to CYBER_DEMON. Badges, hat colors, XP for every discovery. Your hacking career.</p>
         </div>
     </div>
@@ -406,9 +422,10 @@ body {
     </div>
 
     <div class="links">
-        <a href="https://github.com/LOCOSP/WatchDogsGo" class="link-btn">[ SOURCE CODE ]</a>
-        <a href="https://github.com/LOCOSP/WatchDogsGo/blob/main/CHANGELOG.md" class="link-btn">[ CHANGELOG ]</a>
-        <a href="https://github.com/LOCOSP/WatchDogsGo/blob/main/CONTRIBUTING.md" class="link-btn">[ CONTRIBUTING ]</a>
+        <a href="https://github.com/LOCOSP/WDGoNG" class="link-btn">[ NG SOURCE ]</a>
+        <a href="https://locosp.github.io/WDGoNG-HUB/" class="link-btn">[ EXTRAS HUB ]</a>
+        <a href="https://github.com/LOCOSP/WDGWMarauderV8" class="link-btn">[ MARAUDER V8 ]</a>
+        <a href="https://github.com/LOCOSP/WatchDogsGo" class="link-btn">[ OG SOURCE ]</a>
         <a href="https://github.com/LOCOSP/projectZero" class="link-btn">[ ESP32 FIRMWARE ]</a>
         <a href="https://wdgwars.pl" class="link-btn">[ WDGWARS PORTAL ]</a>
     </div>
