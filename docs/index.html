@@ -368,13 +368,36 @@ body {
 
     <div style="margin:0 0 1.25rem">
         <div class="install-label" style="margin-bottom:0.5rem">// ctOS console — live demo (simulated)</div>
-        <iframe src="ctos.html" title="ctOS Terminal — WatchDogsGo NG" loading="lazy"
-            style="width:100%;height:820px;border:1px solid #1c2a3e;border-radius:12px;background:#070a0f;display:block"></iframe>
+        <iframe id="ctos-frame" src="ctos.html" title="ctOS Terminal — WatchDogsGo NG" loading="lazy" scrolling="no"
+            style="width:100%;height:820px;border:1px solid #1c2a3e;border-radius:12px;background:#070a0f;display:block;overflow:hidden"></iframe>
         <div style="margin-top:0.4rem;font-size:0.75rem;color:#606060">
             Interactive radar, live intel, EXTRAS &amp; the Marauder fleet — no real account or location shown.
             <a href="ctos.html" target="_blank" style="color:#00e5ff;text-decoration:none;border-bottom:1px dotted #00e5ff">open full screen ↗</a>
         </div>
     </div>
+
+    <script>
+    (function(){
+        var f = document.getElementById('ctos-frame');
+        if (!f) return;
+        function fit(){
+            try {
+                var doc = f.contentDocument || (f.contentWindow && f.contentWindow.document);
+                if (!doc || !doc.body) return;
+                var h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+                if (h > 40) f.style.height = h + 'px';
+            } catch (e) {}
+        }
+        f.addEventListener('load', function(){
+            fit();
+            [200, 600, 1200, 2200].forEach(function(t){ setTimeout(fit, t); });
+            try { f.contentWindow.addEventListener('click', function(){ setTimeout(fit, 160); }); } catch (e) {}
+            try { f.contentWindow.addEventListener('resize', fit); } catch (e) {}
+        });
+        window.addEventListener('resize', fit);
+        setInterval(fit, 2000);
+    })();
+    </script>
 
     <div class="features">
         <div class="feature">
