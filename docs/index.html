@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Watch Dogs Go — Open-World Hacking Real Life Game</title>
+<title>Watch Dogs Go (OG) — the original open-world hacking game</title>
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
@@ -26,14 +26,11 @@ body {
     width: 110vw; height: 110vh;
     object-fit: cover;
     z-index: -3;
-    /* GPU acceleration hints — promote video to its own layer */
     will-change: transform;
     transform: translateZ(0);
     backface-visibility: hidden;
 }
 
-/* Static dark overlay — replaces the per-frame filter on the video.
-   This composites once and stays put, so the video plays smoothly. */
 .video-overlay {
     position: fixed;
     inset: 0;
@@ -41,12 +38,11 @@ body {
     pointer-events: none;
     background:
         linear-gradient(180deg,
-            rgba(0,0,0,0.55) 0%,
-            rgba(0,0,0,0.45) 50%,
-            rgba(0,0,0,0.6) 100%);
+            rgba(0,0,0,0.6) 0%,
+            rgba(0,0,0,0.5) 50%,
+            rgba(0,0,0,0.65) 100%);
 }
 
-/* Scanline overlay */
 .scanlines {
     position: fixed;
     top: 0; left: 0;
@@ -62,7 +58,6 @@ body {
     );
 }
 
-/* Main content */
 .container {
     min-height: 100vh;
     display: flex;
@@ -85,10 +80,8 @@ body {
         0 0 40px rgba(0,229,255,0.2),
         0 0 80px rgba(0,229,255,0.1);
     position: relative;
-    animation: glitch 3s infinite;
     margin-bottom: 0.5rem;
 }
-
 .title::before,
 .title::after {
     content: attr(data-text);
@@ -106,7 +99,6 @@ body {
     color: #00e436;
     z-index: -1;
 }
-
 @keyframes glitch-clip-1 {
     0% { clip-path: inset(20% 0 60% 0); transform: translate(-3px, 0); }
     20% { clip-path: inset(60% 0 10% 0); transform: translate(3px, 0); }
@@ -123,27 +115,87 @@ body {
     100% { clip-path: inset(30% 0 40% 0); transform: translate(3px, 0); }
 }
 
+.og-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: #ffd400;
+    border: 1px solid rgba(255,212,0,0.45);
+    background: rgba(255,212,0,0.06);
+    padding: 0.3rem 0.9rem;
+    border-radius: 2px;
+    margin-bottom: 1.2rem;
+    text-transform: uppercase;
+}
+
 .subtitle {
     font-family: 'Share Tech Mono', monospace;
     font-size: clamp(0.9rem, 2.5vw, 1.2rem);
     color: #808080;
     text-align: center;
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
     letter-spacing: 0.15em;
 }
 
-/* Install box */
-.install-box {
-    background: rgba(0,0,0,0.85);
-    border: 1px solid #00e5ff;
-    border-radius: 4px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 3rem;
-    max-width: 700px;
+/* About OG */
+.about {
+    max-width: 680px;
     width: 100%;
-    box-shadow: 0 0 30px rgba(0,229,255,0.15);
+    background: rgba(0,0,0,0.78);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 1.5rem 1.8rem;
+    margin-bottom: 2rem;
+    line-height: 1.7;
+    font-size: 0.9rem;
+    color: #b8b8b8;
+    text-align: center;
+}
+.about b { color: #00e5ff; }
+
+/* Big NG button */
+.ng-cta {
+    max-width: 680px;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+.ng-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1rem, 3vw, 1.3rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #000;
+    background: linear-gradient(100deg, #ffd400, #ffb13d);
+    text-decoration: none;
+    padding: 1rem 2rem;
+    border-radius: 6px;
+    box-shadow: 0 0 34px rgba(255,212,0,0.3);
+    transition: transform 0.15s, box-shadow 0.2s;
+}
+.ng-btn:hover { transform: translateY(-2px); box-shadow: 0 0 48px rgba(255,212,0,0.5); }
+.ng-note {
+    margin-top: 0.8rem;
+    font-size: 0.78rem;
+    color: #808080;
+    letter-spacing: 0.05em;
 }
 
+/* OG install box */
+.install-box {
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(0,229,255,0.5);
+    border-radius: 4px;
+    padding: 1.3rem 1.6rem;
+    margin-bottom: 2.5rem;
+    max-width: 680px;
+    width: 100%;
+    box-shadow: 0 0 24px rgba(0,229,255,0.1);
+}
 .install-label {
     color: #808080;
     font-size: 0.8rem;
@@ -151,13 +203,7 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
-
-.install-cmd {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
+.install-cmd { display: flex; align-items: center; gap: 1rem; }
 .install-cmd code {
     flex: 1;
     background: rgba(0,229,255,0.05);
@@ -169,7 +215,6 @@ body {
     overflow-x: auto;
     border: 1px solid rgba(0,229,255,0.2);
 }
-
 .btn-copy {
     background: transparent;
     border: 1px solid #00e5ff;
@@ -182,120 +227,33 @@ body {
     transition: all 0.2s;
     white-space: nowrap;
 }
-.btn-copy:hover {
-    background: rgba(0,229,255,0.15);
-    box-shadow: 0 0 15px rgba(0,229,255,0.3);
-}
+.btn-copy:hover { background: rgba(0,229,255,0.15); box-shadow: 0 0 15px rgba(0,229,255,0.3); }
 
 /* Feature grid */
 .features {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    max-width: 900px;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1.3rem;
+    max-width: 860px;
     width: 100%;
-    margin-bottom: 3rem;
+    margin-bottom: 2.5rem;
 }
-
 .feature {
     background: rgba(0,0,0,0.75);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 4px;
-    padding: 1.5rem;
+    padding: 1.4rem;
     transition: border-color 0.3s;
 }
-.feature:hover {
-    border-color: rgba(0,229,255,0.4);
-}
-
-.feature-icon {
-    font-size: 1.8rem;
-    margin-bottom: 0.5rem;
-}
-
+.feature:hover { border-color: rgba(0,229,255,0.4); }
+.feature-icon { font-size: 1.7rem; margin-bottom: 0.5rem; }
 .feature h3 {
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #00e5ff;
     margin-bottom: 0.5rem;
 }
-
-.feature p {
-    font-size: 0.8rem;
-    color: #808080;
-    line-height: 1.5;
-}
-
-/* Levels */
-.levels {
-    max-width: 700px;
-    width: 100%;
-    margin-bottom: 3rem;
-}
-
-.levels h2 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.2rem;
-    color: #00e5ff;
-    text-align: center;
-    margin-bottom: 1rem;
-}
-
-.level-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    justify-content: center;
-}
-
-.level-tag {
-    font-size: 0.65rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 2px;
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #606060;
-    transition: all 0.3s;
-}
-.level-tag:hover {
-    color: #00e5ff;
-    border-color: #00e5ff;
-    box-shadow: 0 0 8px rgba(0,229,255,0.3);
-}
-
-/* Links */
-.links {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 2rem;
-}
-
-.link-btn {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.9rem;
-    color: #e0e0e0;
-    text-decoration: none;
-    padding: 0.6rem 1.5rem;
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 3px;
-    transition: all 0.2s;
-}
-.link-btn:hover {
-    border-color: #00e5ff;
-    color: #00e5ff;
-    box-shadow: 0 0 15px rgba(0,229,255,0.2);
-}
-
-/* Footer */
-.footer {
-    color: #404040;
-    font-size: 0.7rem;
-    text-align: center;
-    padding: 1rem;
-}
-.footer a { color: #606060; text-decoration: none; }
-.footer a:hover { color: #00e5ff; }
+.feature p { font-size: 0.8rem; color: #808080; line-height: 1.5; }
 
 /* Hardware badges */
 .hw-badges {
@@ -313,6 +271,31 @@ body {
     color: #00e5ff;
     background: rgba(0,229,255,0.05);
 }
+
+/* Links */
+.links {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+.link-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+    text-decoration: none;
+    padding: 0.6rem 1.5rem;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+.link-btn:hover { border-color: #00e5ff; color: #00e5ff; box-shadow: 0 0 15px rgba(0,229,255,0.2); }
+
+/* Footer */
+.footer { color: #404040; font-size: 0.7rem; text-align: center; padding: 1rem; }
+.footer a { color: #606060; text-decoration: none; }
+.footer a:hover { color: #00e5ff; }
 </style>
 </head>
 <body>
@@ -327,78 +310,33 @@ body {
 <div class="container">
 
     <h1 class="title" data-text="WATCH DOGS GO">WATCH DOGS GO</h1>
-    <div style="text-align:center;margin:14px 0"><a href="https://locosp.github.io/WDGoNG/" style="display:inline-block;background:#ffd400;color:#000;font-weight:700;padding:11px 20px;border-radius:6px;text-decoration:none;font-family:ui-monospace,monospace;letter-spacing:.5px">&#129421; WatchDogsGo NG &mdash; own page &amp; one-liner &rarr;</a></div>
-    <p class="subtitle">OPEN-WORLD HACKING REAL LIFE GAME // REAL SIGNALS // REAL XP</p>
+    <span class="og-badge">OG · the original</span>
+    <p class="subtitle">THE FIRST WATCHDOGSGO // PYXEL BUILD // REAL SIGNALS, REAL XP</p>
 
-    <div class="hw-badges">
-        <span class="hw-badge">ClockworkPi uConsole</span>
-        <span class="hw-badge">ESP32-C5</span>
-        <span class="hw-badge">PipBoy Watch</span>
-        <span class="hw-badge">LoRa MeshCore</span>
-        <span class="hw-badge">RTL-SDR</span>
-        <span class="hw-badge">Flipper Zero</span>
+    <div class="about">
+        This is the <b>original</b> Watch Dogs Go — the first open-world hacking game for the
+        ClockworkPi uConsole, built on <b>pyxel</b> and driving a real ESP32-C5 for WiFi/BLE
+        scanning, handshake capture, wardriving and attacks with a game UI on top.
+        It is still here and still installable — but the project has moved on.
+        The current, actively developed game is <b>WatchDogsGo NG</b>.
+    </div>
+
+    <div class="ng-cta">
+        <a class="ng-btn" href="https://locosp.github.io/WDGoNG/">🦍 Play WatchDogsGo NG →</a>
+        <div class="ng-note">New raylib build · Cluster wardrive · LoRa mesh · ADS-B · EXTRAS platform</div>
     </div>
 
     <div class="install-box">
-        <div class="install-label">// install WatchDogsGo NG — the new generation (one command)</div>
+        <div class="install-label">// install the classic OG build (one command)</div>
         <div class="install-cmd">
-            <code id="install-code">curl -sL https://locosp.github.io/WatchDogsGo/install-ng | sudo bash</code>
+            <code id="install-code">curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash</code>
             <button class="btn-copy" onclick="copyInstall()">COPY</button>
-        </div>
-        <div style="margin-top:0.5rem;font-size:0.8rem;color:#8a8a8a;line-height:1.6">
-            Next-gen raylib build — offline world map, <b>Cluster wardrive</b> (Marauder V8 fleet),
-            unified <b>LoRa mesh</b> (MeshCore + Meshtastic), ADS-B tracks, and the
-            <b>EXTRAS</b> mini-app platform with a signed hub.
-            <br>
-            <a href="https://github.com/LOCOSP/WDGoNG" target="_blank" style="color:#00e5ff;text-decoration:none;border-bottom:1px dotted #00e5ff">source (WDGoNG)</a> &nbsp;·&nbsp;
-            <a href="https://locosp.github.io/WDGoNG-HUB/" target="_blank" style="color:#1fff9c;text-decoration:none;border-bottom:1px dotted #1fff9c">EXTRAS hub</a> &nbsp;·&nbsp;
-            <a href="install-ng" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view script</a>
-        </div>
-    </div>
-
-    <div class="install-box" style="opacity:0.85">
-        <div class="install-label">// classic build (OG, pyxel) — one command</div>
-        <div class="install-cmd">
-            <code>curl -sL https://locosp.github.io/WatchDogsGo/install | sudo bash</code>
         </div>
         <div style="margin-top:0.5rem;font-size:0.75rem;color:#606060">
             The original pyxel build. <a href="install" target="_blank" style="color:#606060;text-decoration:none;border-bottom:1px dotted #404040">view install script source</a>
             &nbsp;— always review scripts before piping to sudo
         </div>
     </div>
-
-    <div style="margin:0 0 1.25rem">
-        <div class="install-label" style="margin-bottom:0.5rem">// ctOS console — live demo (simulated)</div>
-        <iframe id="ctos-frame" src="ctos.html" title="ctOS Terminal — WatchDogsGo NG" loading="lazy" scrolling="no"
-            style="width:100%;height:820px;border:1px solid #1c2a3e;border-radius:12px;background:#070a0f;display:block;overflow:hidden"></iframe>
-        <div style="margin-top:0.4rem;font-size:0.75rem;color:#606060">
-            Interactive radar, live intel, EXTRAS &amp; the Marauder fleet — no real account or location shown.
-            <a href="ctos.html" target="_blank" style="color:#00e5ff;text-decoration:none;border-bottom:1px dotted #00e5ff">open full screen ↗</a>
-        </div>
-    </div>
-
-    <script>
-    (function(){
-        var f = document.getElementById('ctos-frame');
-        if (!f) return;
-        function fit(){
-            try {
-                var doc = f.contentDocument || (f.contentWindow && f.contentWindow.document);
-                if (!doc || !doc.body) return;
-                var h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
-                if (h > 40) f.style.height = h + 'px';
-            } catch (e) {}
-        }
-        f.addEventListener('load', function(){
-            fit();
-            [200, 600, 1200, 2200].forEach(function(t){ setTimeout(fit, t); });
-            try { f.contentWindow.addEventListener('click', function(){ setTimeout(fit, 160); }); } catch (e) {}
-            try { f.contentWindow.addEventListener('resize', fit); } catch (e) {}
-        });
-        window.addEventListener('resize', fit);
-        setInterval(fit, 2000);
-    })();
-    </script>
 
     <div class="features">
         <div class="feature">
@@ -417,48 +355,21 @@ body {
             <p>Encrypted off-grid chat over LoRa. No internet needed. 869 MHz mesh network with E2E encryption.</p>
         </div>
         <div class="feature">
-            <div class="feature-icon">✈</div>
-            <h3>ADS-B Radar</h3>
-            <p>Track aircraft in real-time on your map via RTL-SDR. See callsigns, altitude, speed.</p>
-        </div>
-        <div class="feature">
-            <div class="feature-icon">⌚</div>
-            <h3>PipBoy Watch</h3>
-            <p>T-Watch Ultra companion. NFC scanning, remote recon, LoRa, GPS. Control from game via BLE.</p>
-        </div>
-        <div class="feature">
             <div class="feature-icon">🎮</div>
-            <h3>RLG Progression</h3>
+            <h3>RPG Progression</h3>
             <p>20 levels from NOOB to CYBER_DEMON. Badges, hat colors, XP for every discovery. Your hacking career.</p>
         </div>
     </div>
 
-    <div class="levels">
-        <h2>// PROGRESSION</h2>
-        <div class="level-bar">
-            <span class="level-tag">NOOB</span>
-            <span class="level-tag">SCRIPT_KIDDIE</span>
-            <span class="level-tag">SKIDDIE+</span>
-            <span class="level-tag">WANNABE</span>
-            <span class="level-tag">PACKET_MONKEY</span>
-            <span class="level-tag">WARDRIVER</span>
-            <span class="level-tag">HACKER</span>
-            <span class="level-tag">NETRUNNER</span>
-            <span class="level-tag">PHREAKER</span>
-            <span class="level-tag">EXPLOIT_DEV</span>
-            <span class="level-tag">ELITE</span>
-            <span class="level-tag">SHADOW_OPS</span>
-            <span class="level-tag">GHOST</span>
-            <span class="level-tag">ZERO_DAY</span>
-            <span class="level-tag">APT_AGENT</span>
-            <span class="level-tag">CYBER_DEMON</span>
-        </div>
+    <div class="hw-badges">
+        <span class="hw-badge">ClockworkPi uConsole</span>
+        <span class="hw-badge">ESP32-C5</span>
+        <span class="hw-badge">LoRa MeshCore</span>
+        <span class="hw-badge">pyxel</span>
     </div>
 
     <div class="links">
-        <a href="https://github.com/LOCOSP/WDGoNG" class="link-btn">[ NG SOURCE ]</a>
-        <a href="https://locosp.github.io/WDGoNG-HUB/" class="link-btn">[ EXTRAS HUB ]</a>
-        <a href="https://github.com/LOCOSP/WDGWMarauderV8" class="link-btn">[ MARAUDER V8 ]</a>
+        <a href="https://locosp.github.io/WDGoNG/" class="link-btn">[ WATCHDOGSGO NG ]</a>
         <a href="https://github.com/LOCOSP/WatchDogsGo" class="link-btn">[ OG SOURCE ]</a>
         <a href="https://github.com/LOCOSP/projectZero" class="link-btn">[ ESP32 FIRMWARE ]</a>
         <a href="https://wdgwars.pl" class="link-btn">[ WDGWARS PORTAL ]</a>
