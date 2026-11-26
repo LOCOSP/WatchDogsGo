@@ -5,6 +5,8 @@ Open-world hacking RPG with real cybersecurity tooling. A pyxel game frontend fo
 > **For authorized security testing, research and education only.**
 > You are solely responsible for how you use this software. See [Legal & responsible use](#legal--responsible-use).
 
+**Website:** <https://locosp.github.io/WatchDogsGo/>  |  **New version (NG):** <https://locosp.github.io/WDGoNG/>
+
 ![Watch Dogs Go — main screen](docs/screenshots/01_main_screen.png)
 
 > *Lv.13 GHOST · 203k XP · 21 badges · synced with the wdgwars.pl community server*
